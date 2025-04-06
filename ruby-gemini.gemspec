@@ -30,6 +30,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rubocop", "~> 1.0"
   spec.add_development_dependency "webmock", "~> 3.0"
   spec.add_development_dependency "dotenv", "~> 2.0"
+  spec.add_development_dependency "vcr", "~> 6.3.1"
 
   # ファイル指定
   spec.files = Dir.glob("{lib,sig}/**/*") + ["README.md", "LICENSE.txt", "CHANGELOG.md"]

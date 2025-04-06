@@ -7,6 +7,9 @@ require_relative "gemini/http_headers"
 require_relative "gemini/http"
 require_relative "gemini/client"
 require_relative "gemini/models"
+require_relative "gemini/threads"
+require_relative "gemini/messages"
+require_relative "gemini/runs"
 require_relative "gemini/embeddings"
 
 module Gemini

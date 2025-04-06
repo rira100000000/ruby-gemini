@@ -26,6 +26,21 @@ module Gemini
       raise ConfigurationError, "API キーが設定されていません" unless @api_key
     end
     
+    # スレッド管理へのアクセサ
+    def threads
+      @threads ||= Gemini::Threads.new(client: self)
+    end
+    
+    # メッセージ管理へのアクセサ
+    def messages
+      @messages ||= Gemini::Messages.new(client: self)
+    end
+    
+    # 実行管理へのアクセサ
+    def runs
+      @runs ||= Gemini::Runs.new(client: self)
+    end
+    
     # OpenAIの chat に似た、Gemini APIのテキスト生成メソッド
     def chat(parameters: {})
       model = parameters.delete(:model) || "gemini-2.0-flash-lite"
@@ -78,7 +93,7 @@ module Gemini
       path = "models/#{model}:streamGenerateContent"
       json_post(path: path, parameters: params)
     end
-    
+
     # デバッグ用のinspectメソッド
     def inspect
       vars = instance_variables.map do |var|
