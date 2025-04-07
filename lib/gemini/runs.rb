@@ -5,8 +5,8 @@ module Gemini
       @runs = {}
     end
 
-    # 実行の作成
-    def create(thread_id:, parameters: {})
+    # 実行の作成（ストリームコールバック対応）
+    def create(thread_id:, parameters: {}, &stream_callback)
       # スレッドが存在するか確認
       begin
         @client.threads.retrieve(id: thread_id)
@@ -31,33 +31,13 @@ module Gemini
       # モデルを取得（パラメータまたはスレッドのデフォルト）
       model = parameters[:model] || @client.threads.get_model(id: thread_id)
       
-      # Gemini APIリクエスト
+      # Gemini APIリクエスト用のパラメータを準備
       api_params = {
         contents: contents,
         model: model
       }.merge(parameters.reject { |k, _| [:assistant_id, :instructions].include?(k) })
       
-      response = @client.chat(parameters: api_params)
-      
-      # 応答をモデルメッセージとして追加
-      if response["candidates"] && !response["candidates"].empty?
-        candidate = response["candidates"][0]
-        content = candidate["content"]
-        
-        if content && content["parts"] && !content["parts"].empty?
-          model_text = content["parts"][0]["text"]
-          
-          @client.messages.create(
-            thread_id: thread_id,
-            parameters: {
-              role: "model",
-              content: model_text
-            }
-          )
-        end
-      end
-      
-      # 実行情報を作成
+      # 実行情報を事前に作成
       run_id = SecureRandom.uuid
       created_at = Time.now.to_i
       
@@ -66,13 +46,69 @@ module Gemini
         "object" => "thread.run",
         "created_at" => created_at,
         "thread_id" => thread_id,
-        "status" => "completed",
+        "status" => "running",
         "model" => model,
         "metadata" => parameters[:metadata] || {},
-        "response" => response
+        "response" => nil
       }
       
+      # 一時的に実行情報を保存
       @runs[run_id] = run
+      
+      # ストリーミングコールバックが渡された場合
+      if block_given?
+        # 完全なレスポンステキストを蓄積するための変数
+        response_text = ""
+        
+        # ストリーミングモードでAPIリクエスト
+        response = @client.chat(parameters: api_params) do |chunk_text, raw_chunk|
+          # ユーザーに渡されたコールバックを呼び出す
+          stream_callback.call(chunk_text) if stream_callback
+          
+          # 完全なレスポンステキストを蓄積
+          response_text += chunk_text
+        end
+        
+        # ストリーミング完了後にメッセージとして保存
+        if !response_text.empty?
+          @client.messages.create(
+            thread_id: thread_id,
+            parameters: {
+              role: "model",
+              content: response_text
+            }
+          )
+        end
+        
+        # 実行情報を更新
+        run["status"] = "completed"
+        run["response"] = response
+      else
+        # 従来の一括レスポンスモード
+        response = @client.chat(parameters: api_params)
+        
+        # 応答をモデルメッセージとして追加
+        if response["candidates"] && !response["candidates"].empty?
+          candidate = response["candidates"][0]
+          content = candidate["content"]
+          
+          if content && content["parts"] && !content["parts"].empty?
+            model_text = content["parts"][0]["text"]
+            
+            @client.messages.create(
+              thread_id: thread_id,
+              parameters: {
+                role: "model",
+                content: model_text
+              }
+            )
+          end
+        end
+        
+        # 実行情報を更新
+        run["status"] = "completed"
+        run["response"] = response
+      end
       
       # 返却用に応答から非公開情報を削除
       run_response = run.dup

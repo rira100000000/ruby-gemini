@@ -20,13 +20,30 @@ module Gemini
     end
 
     def json_post(path:, parameters:, query_parameters: {})
+      # ストリーミングパラメータがあるかチェック
+      stream_proc = parameters[:stream] if parameters[:stream].respond_to?(:call)
+      
+      # ストリーミングモードかどうかの判定
+      is_streaming = !stream_proc.nil?
+      
+      # SSEストリーミングの場合はクエリパラメータにalt=sseを追加
+      if is_streaming
+        query_parameters = query_parameters.merge(alt: 'sse')
+      end
+      
       # Gemini APIではAPIキーをクエリパラメータとして渡す
       query_params = query_parameters.merge(key: @api_key)
       
-      parse_json(conn.post(uri(path: path)) do |req|
-        configure_json_post_request(req, parameters)
-        req.params = req.params.merge(query_params)
-      end&.body)
+      # ストリーミングモードの場合
+      if is_streaming
+        handle_streaming_request(path, parameters, query_params, stream_proc)
+      else
+        # 通常の一括レスポンスモード
+        parse_json(conn.post(uri(path: path)) do |req|
+          configure_json_post_request(req, parameters)
+          req.params = req.params.merge(query_params)
+        end&.body)
+      end
     end
 
     def multipart_post(path:, parameters: nil)
@@ -45,6 +62,88 @@ module Gemini
     end
 
     private
+    
+    # ストリーミングリクエストを処理
+    def handle_streaming_request(path, parameters, query_params, stream_proc)
+      # リクエストパラメータのコピーを作成
+      req_parameters = parameters.dup
+      
+      # ストリーミングプロシージャを削除（JSONシリアライズに失敗するため）
+      req_parameters.delete(:stream)
+      
+      # SSEストリーミング用に応答を蓄積する変数
+      accumulated_json = nil
+      
+      # Faradayリクエストを実行
+      connection = conn
+      
+      begin
+        response = connection.post(uri(path: path)) do |req|
+          req.headers = headers
+          req.params = query_params
+          req.body = req_parameters.to_json
+          
+          # SSEストリーミングイベントを処理するコールバック
+          req.options.on_data = proc do |chunk, _bytes, env|
+            if env && env.status != 200
+              raise_error = Faraday::Response::RaiseError.new
+              raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
+            end
+            
+            # SSEフォーマットの行を処理
+            process_sse_chunk(chunk, stream_proc) do |parsed_json|
+              # 最初の有効なJSONを保存
+              accumulated_json ||= parsed_json
+            end
+          end
+        end
+        
+        # 全体のレスポンスを返す
+        return accumulated_json || {}
+      rescue => e
+        log_streaming_error(e) if @log_errors
+        raise e
+      end
+    end
+    
+    # SSEチャンクを処理
+    def process_sse_chunk(chunk, user_proc)
+      # チャンクを行に分割
+      chunk.each_line do |line|
+        # "data:"で始まる行だけを処理
+        if line.start_with?("data:")
+          # "data:"プレフィックスを取り除く
+          data = line[5..-1].strip
+          
+          # 終了マーカーをチェック
+          next if data == "[DONE]"
+          
+          begin
+            # JSONをパース
+            parsed_json = JSON.parse(data)
+            
+            # ユーザープロシージャにパースしたJSONを渡す
+            user_proc.call(parsed_json)
+            
+            # 呼び出し元に渡す
+            yield parsed_json if block_given?
+          rescue JSON::ParserError => e
+            log_json_error(e, data) if @log_errors
+          end
+        end
+      end
+    end
+    
+    # ストリーミングエラーをログに記録
+    def log_streaming_error(error)
+      STDERR.puts "[Gemini::HTTP] ストリーミングエラー: #{error.message}"
+      STDERR.puts error.backtrace.join("\n") if ENV["DEBUG"]
+    end
+    
+    # JSON解析エラーをログに記録
+    def log_json_error(error, data)
+      STDERR.puts "[Gemini::HTTP] JSON解析エラー: #{error.message}, データ: #{data[0..100]}..." if ENV["DEBUG"]
+    end
 
     def parse_json(response)
       return unless response

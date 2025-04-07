@@ -42,10 +42,22 @@ module Gemini
     end
     
     # OpenAIの chat に似た、Gemini APIのテキスト生成メソッド
-    def chat(parameters: {})
+    # ストリーミングコールバックにも対応するように拡張
+    def chat(parameters: {}, &stream_callback)
       model = parameters.delete(:model) || "gemini-2.0-flash-lite"
-      path = "models/#{model}:generateContent"
-      json_post(path: path, parameters: parameters)
+      
+      # ストリーミングコールバックが渡された場合
+      if block_given?
+        path = "models/#{model}:streamGenerateContent"
+        # ストリームコールバックを設定
+        stream_params = parameters.dup
+        stream_params[:stream] = proc { |chunk| process_stream_chunk(chunk, &stream_callback) }
+        return json_post(path: path, parameters: stream_params)
+      else
+        # 通常の一括レスポンスモード
+        path = "models/#{model}:generateContent"
+        return json_post(path: path, parameters: parameters)
+      end
     end
     
     # OpenAIの embeddings に対応するメソッド
@@ -57,8 +69,8 @@ module Gemini
     
     # OpenAIの completions に対応するメソッド
     # Gemini APIでは chat と同じエンドポイントを使用
-    def completions(parameters: {})
-      chat(parameters: parameters)
+    def completions(parameters: {}, &stream_callback)
+      chat(parameters: parameters, &stream_callback)
     end
     
     # サブクライアントへのアクセサ
@@ -69,29 +81,33 @@ module Gemini
     # 利便性のためのヘルパーメソッド
     
     # OpenAIの chat に似た使い方ができるメソッド
-    def generate_content(prompt, model: "gemini-2.0-flash-lite", **parameters)
+    # ストリーミングコールバックにも対応
+    def generate_content(prompt, model: "gemini-2.0-flash-lite", **parameters, &stream_callback)
       content = format_content(prompt)
       params = {
         contents: [content],
         model: model
       }.merge(parameters)
       
-      chat(parameters: params)
+      if block_given?
+        chat(parameters: params, &stream_callback)
+      else
+        chat(parameters: params)
+      end
     end
     
     # ストリーミングテキスト生成
+    # 上記のgenerate_contentでも同じ機能を提供、こちらは明示的にstreamingを指定している
     def generate_content_stream(prompt, model: "gemini-2.0-flash-lite", **parameters, &block)
       raise ArgumentError, "ストリーミングにはブロックが必要です" unless block_given?
       
       content = format_content(prompt)
       params = {
         contents: [content],
-        model: model,
-        stream: block
+        model: model
       }.merge(parameters)
       
-      path = "models/#{model}:streamGenerateContent"
-      json_post(path: path, parameters: params)
+      chat(parameters: params, &block)
     end
 
     # デバッグ用のinspectメソッド
@@ -104,6 +120,20 @@ module Gemini
     end
     
     private
+    
+    # ストリームチャンクを処理してコールバックに渡す
+    def process_stream_chunk(chunk, &callback)
+      if chunk.respond_to?(:dig) && chunk.dig("candidates", 0, "content", "parts", 0, "text")
+        chunk_text = chunk.dig("candidates", 0, "content", "parts", 0, "text")
+        callback.call(chunk_text, chunk)
+      elsif chunk.respond_to?(:dig) && chunk.dig("candidates", 0, "content", "parts")
+        # テキストがない場合は空の部分をコールバックに渡す
+        callback.call("", chunk)
+      else
+        # その他の種類のチャンク（メタデータなど）は空文字列として扱う
+        callback.call("", chunk)
+      end
+    end
     
     # 入力をGemini API形式に変換
     def format_content(input)
