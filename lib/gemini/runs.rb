@@ -18,6 +18,9 @@ module Gemini
       messages_response = @client.messages.list(thread_id: thread_id)
       messages = messages_response["data"]
       
+      # システムプロンプトを抽出
+      system_instruction = parameters[:system_instruction]
+      
       # Gemini API用のcontents配列を構築
       contents = messages.map do |msg|
         {
@@ -28,15 +31,28 @@ module Gemini
         }
       end
       
-      # モデルを取得（パラメータまたはスレッドのデフォルト）
+      # モデルを取得
       model = parameters[:model] || @client.threads.get_model(id: thread_id)
       
       # Gemini APIリクエスト用のパラメータを準備
       api_params = {
         contents: contents,
         model: model
-      }.merge(parameters.reject { |k, _| [:assistant_id, :instructions].include?(k) })
+      }
       
+      # システムプロンプトがあれば追加
+      if system_instruction
+        api_params[:system_instruction] = {
+          parts: [
+            { text: system_instruction.is_a?(String) ? system_instruction : system_instruction.to_s }
+          ]
+        }
+      end
+      
+      # その他のパラメータを追加（除外リストを更新）
+      api_params.merge!(parameters.reject { |k, _| [:assistant_id, :instructions, :system_instruction, :model].include?(k) })
+  
+
       # 実行情報を事前に作成
       run_id = SecureRandom.uuid
       created_at = Time.now.to_i

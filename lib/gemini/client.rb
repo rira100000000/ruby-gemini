@@ -82,12 +82,21 @@ module Gemini
     
     # OpenAIの chat に似た使い方ができるメソッド
     # ストリーミングコールバックにも対応
-    def generate_content(prompt, model: "gemini-2.0-flash-lite", **parameters, &stream_callback)
+    # system_instructionパラメータを追加
+    def generate_content(prompt, model: "gemini-2.0-flash-lite", system_instruction: nil, **parameters, &stream_callback)
       content = format_content(prompt)
       params = {
         contents: [content],
         model: model
-      }.merge(parameters)
+      }
+      
+      # system_instructionが提供された場合、それを追加
+      if system_instruction
+        params[:system_instruction] = format_content(system_instruction)
+      end
+      
+      # 他のパラメータをマージ
+      params.merge!(parameters)
       
       if block_given?
         chat(parameters: params, &stream_callback)
@@ -98,14 +107,23 @@ module Gemini
     
     # ストリーミングテキスト生成
     # 上記のgenerate_contentでも同じ機能を提供、こちらは明示的にstreamingを指定している
-    def generate_content_stream(prompt, model: "gemini-2.0-flash-lite", **parameters, &block)
+    # system_instructionパラメータを追加
+    def generate_content_stream(prompt, model: "gemini-2.0-flash-lite", system_instruction: nil, **parameters, &block)
       raise ArgumentError, "ストリーミングにはブロックが必要です" unless block_given?
       
       content = format_content(prompt)
       params = {
         contents: [content],
         model: model
-      }.merge(parameters)
+      }
+      
+      # system_instructionが提供された場合、それを追加
+      if system_instruction
+        params[:system_instruction] = format_content(system_instruction)
+      end
+      
+      # 他のパラメータをマージ
+      params.merge!(parameters)
       
       chat(parameters: params, &block)
     end
