@@ -1,4 +1,5 @@
 require "faraday"
+require "faraday/multipart"
 require "json"
 require 'dotenv/load'
 
@@ -11,7 +12,7 @@ require_relative "gemini/threads"
 require_relative "gemini/messages"
 require_relative "gemini/runs"
 require_relative "gemini/embeddings"
-
+require_relative "gemini/audio"
 module Gemini
   class Error < StandardError; end
   class ConfigurationError < Error; end

@@ -40,6 +40,20 @@ module Gemini
     def runs
       @runs ||= Gemini::Runs.new(client: self)
     end
+
+    def audio
+      @audio ||= Gemini::Audio.new(client: self)
+    end
+
+    def reset_headers
+      @extra_headers = {}
+    end
+    
+    # Audio機能用のconn（Faraday接続）へのアクセス
+    # HTTPモジュールのprivateメソッドを外部から使用できるようにするためのラッパー
+    def conn(multipart: false)
+      super(multipart: multipart)
+    end
     
     # OpenAIの chat に似た、Gemini APIのテキスト生成メソッド
     # ストリーミングコールバックにも対応するように拡張
