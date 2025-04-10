@@ -1,3 +1,4 @@
+[README ‐ 日本語](https://github.com/rira100000000/ruby-gemini/wiki/README-%E2%80%90-%E6%97%A5%E6%9C%AC%E8%AA%9E)
 # Ruby-Gemini
 
 A Ruby client library for Google's Gemini API. This gem provides a simple, intuitive interface for interacting with Gemini's generative AI capabilities, following patterns similar to other AI client libraries.
@@ -246,6 +247,9 @@ The gem includes several demo applications that showcase its functionality:
 
 Run the demos with:
 
+Adding _ja to the name of each demo file will launch the Japanese version of the demo.
+例: `ruby demo_ja.rb`
+
 ```bash
 # Basic chat demo
 ruby demo/demo.rb
@@ -255,6 +259,9 @@ ruby demo/stream_demo.rb
 
 # Audio transcription
 ruby demo/audio_demo.rb path/to/audio/file.mp3
+
+# Audio transcription with over 20MB audio file
+ruby demo/file_audio_demo_ja.rb path/to/audio/file.mp3
 ```
 
 ## Models
