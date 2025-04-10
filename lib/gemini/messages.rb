@@ -2,15 +2,15 @@ module Gemini
   class Messages
     def initialize(client:)
       @client = client
-      @message_store = {} # スレッドIDごとのメッセージを保存
+      @message_store = {} # Store messages by thread ID
     end
 
-    # スレッド内のメッセージをリスト
+    # List messages in a thread
     def list(thread_id:, parameters: {})
-      # 内部実装：メッセージストアからスレッドのメッセージを取得
+      # Internal implementation: Get messages for the thread from message store
       messages = get_thread_messages(thread_id)
       
-      # OpenAIと同様のレスポンス形式
+      # OpenAI-like response format
       {
         "object" => "list",
         "data" => messages,
@@ -20,7 +20,7 @@ module Gemini
       }
     end
 
-    # 特定のメッセージを取得
+    # Retrieve a specific message
     def retrieve(thread_id:, id:)
       messages = get_thread_messages(thread_id)
       message = messages.find { |m| m["id"] == id }
@@ -29,15 +29,15 @@ module Gemini
       message
     end
 
-    # 新しいメッセージを作成
+    # Create a new message
     def create(thread_id:, parameters: {})
-      # スレッドが存在するか確認（存在しない場合は例外発生）
+      # Check if thread exists (raise exception if not)
       validate_thread_exists(thread_id)
       
       message_id = SecureRandom.uuid
       created_at = Time.now.to_i
       
-      # パラメータからメッセージデータを構築
+      # Build message data from parameters
       message = {
         "id" => message_id,
         "object" => "thread.message",
@@ -47,27 +47,27 @@ module Gemini
         "content" => format_content(parameters[:content])
       }
       
-      # メッセージをスレッドに追加
+      # Add message to thread
       add_message_to_thread(thread_id, message)
       
       message
     end
 
-    # メッセージを変更
+    # Modify a message
     def modify(thread_id:, id:, parameters: {})
       message = retrieve(thread_id: thread_id, id: id)
       
-      # 変更可能なパラメータを適用
+      # Apply modifiable parameters
       message["metadata"] = parameters[:metadata] if parameters[:metadata]
       
       message
     end
 
-    # メッセージを削除（論理削除）
+    # Delete a message (logical deletion)
     def delete(thread_id:, id:)
       message = retrieve(thread_id: thread_id, id: id)
       
-      # 論理削除フラグを設定
+      # Set logical deletion flag
       message["deleted"] = true
       
       { "id" => id, "object" => "thread.message.deleted", "deleted" => true }
@@ -75,21 +75,21 @@ module Gemini
 
     private
 
-    # スレッドのメッセージを取得（内部メソッド）
+    # Get thread messages (internal method)
     def get_thread_messages(thread_id)
       validate_thread_exists(thread_id)
       @message_store[thread_id] ||= []
       @message_store[thread_id].reject { |m| m["deleted"] }
     end
 
-    # スレッドにメッセージを追加（内部メソッド）
+    # Add message to thread (internal method)
     def add_message_to_thread(thread_id, message)
       @message_store[thread_id] ||= []
       @message_store[thread_id] << message
       message
     end
 
-    # スレッドの存在を確認（内部メソッド）
+    # Validate thread exists (internal method)
     def validate_thread_exists(thread_id)
       begin
         @client.threads.retrieve(id: thread_id)
@@ -98,7 +98,7 @@ module Gemini
       end
     end
 
-    # コンテンツをGemini API形式に変換（内部メソッド）
+    # Convert content to Gemini API format (internal method)
     def format_content(content)
       case content
       when String
@@ -119,7 +119,7 @@ module Gemini
     end
   end
 
-  # エラークラス
+  # Error class
   class Error < StandardError
     attr_reader :code
     

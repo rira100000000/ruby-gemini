@@ -1,30 +1,27 @@
 module Gemini
   class Files
-    # File APIのベースURL
+    # Base URL for File API
     FILE_API_BASE_PATH = "files".freeze
 
     def initialize(client:)
       @client = client
     end
 
-    # ファイルをアップロードするメソッド
-    # @param file [File] アップロードするファイル
-    # @param display_name [String] ファイルの表示名（オプション）
-    # @return [Hash] アップロードされたファイルの情報
+    # Method to upload a file
     def upload(file:, display_name: nil)
-      # ファイルが有効かチェック
-      raise ArgumentError, "ファイルが指定されていません" unless file
+      # Check if file is valid
+      raise ArgumentError, "No file specified" unless file
 
-      # ファイルのMIMEタイプとサイズを取得
+      # Get MIME type and size of the file
       mime_type = determine_mime_type(file)
       file.rewind
       file_size = file.size
 
-      # display_nameが指定されていない場合はファイル名を使用
+      # Use filename as display_name if not specified
       display_name ||= File.basename(file.path) if file.respond_to?(:path)
       display_name ||= "uploaded_file"
 
-      # 初期アップロードリクエスト（メタデータ定義）のヘッダー
+      # Headers for initial upload request (metadata definition)
       headers = {
         "X-Goog-Upload-Protocol" => "resumable",
         "X-Goog-Upload-Command" => "start",
@@ -33,25 +30,25 @@ module Gemini
         "Content-Type" => "application/json"
       }
 
-      # デバッグ出力を追加
+      # Add debug output
       if ENV["DEBUG"]
-        puts "リクエストURL: https://generativelanguage.googleapis.com/upload/v1beta/files"
-        puts "ヘッダー: #{headers.inspect}"
-        puts "APIキー: #{@client.api_key[0..5]}..." if @client.api_key
+        puts "Request URL: https://generativelanguage.googleapis.com/upload/v1beta/files"
+        puts "Headers: #{headers.inspect}"
+        puts "API Key: #{@client.api_key[0..5]}..." if @client.api_key
       end
 
-      # 初期リクエストを送信してアップロードURLを取得
+      # Send initial request to get upload URL
       response = @client.conn.post("https://generativelanguage.googleapis.com/upload/v1beta/files") do |req|
         req.headers = headers
         req.params = { key: @client.api_key }
         req.body = { file: { display_name: display_name } }.to_json
       end
 
-      # レスポンスヘッダーからアップロードURLを取得
+      # Get upload URL from response headers
       upload_url = response.headers["x-goog-upload-url"]
-      raise "アップロードURLを取得できませんでした" unless upload_url
+      raise "Failed to obtain upload URL" unless upload_url
 
-      # ファイルをアップロード
+      # Upload the file
       file.rewind
       file_data = file.read
       upload_response = @client.conn.post(upload_url) do |req|
@@ -63,28 +60,23 @@ module Gemini
         req.body = file_data
       end
 
-      # レスポンスをJSONとしてパース
+      # Parse response as JSON
       if upload_response.body.is_a?(String)
         JSON.parse(upload_response.body)
       elsif upload_response.body.is_a?(Hash)
         upload_response.body
       else
-        raise "不正なレスポンス形式: #{upload_response.body.class}"
+        raise "Invalid response format: #{upload_response.body.class}"
       end
     end
 
-    # ファイルのメタデータを取得するメソッド
-    # @param name [String] ファイル名（例: "files/abc-123"）
-    # @return [Hash] ファイルのメタデータ
+    # Method to get file metadata
     def get(name:)
       path = name.start_with?("files/") ? name : "files/#{name}"
       @client.get(path: path)
     end
 
-    # アップロードしたファイル一覧を取得するメソッド
-    # @param page_size [Integer] 1ページあたりの最大ファイル数
-    # @param page_token [String] 前回のリクエストで取得したページトークン
-    # @return [Hash] ファイル一覧とページトークン
+    # Method to get list of uploaded files
     def list(page_size: nil, page_token: nil)
       parameters = {}
       parameters[:pageSize] = page_size if page_size
@@ -96,9 +88,7 @@ module Gemini
       )
     end
 
-    # ファイルを削除するメソッド
-    # @param name [String] ファイル名（例: "files/abc-123"）
-    # @return [Hash] 削除結果
+    # Method to delete a file
     def delete(name:)
       path = name.start_with?("files/") ? name : "files/#{name}"
       @client.delete(path: path)
@@ -106,7 +96,7 @@ module Gemini
 
     private
 
-    # ファイルの拡張子からMIME typeを簡易判定
+    # Simple MIME type determination from file extension
     def determine_mime_type(file)
       return "application/octet-stream" unless file.respond_to?(:path)
 
@@ -151,7 +141,7 @@ module Gemini
       when ".pptx", ".ppt"
         "application/vnd.ms-powerpoint"
       else
-        # デフォルト値
+        # Default value
         "application/octet-stream"
       end
     end

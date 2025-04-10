@@ -5,7 +5,7 @@ module Gemini
     include HTTPHeaders
 
     def get(path:, parameters: nil)
-      # Gemini APIはパラメータにAPIキーを必要とする
+      # Gemini API requires API key as a parameter
       params = (parameters || {}).merge(key: @api_key)
       parse_json(conn.get(uri(path: path), params) do |req|
         req.headers = headers
@@ -20,25 +20,25 @@ module Gemini
     end
 
     def json_post(path:, parameters:, query_parameters: {})
-      # ストリーミングパラメータがあるかチェック
+      # Check if there are streaming parameters
       stream_proc = parameters[:stream] if parameters[:stream].respond_to?(:call)
       
-      # ストリーミングモードかどうかの判定
+      # Determine if we're in streaming mode
       is_streaming = !stream_proc.nil?
       
-      # SSEストリーミングの場合はクエリパラメータにalt=sseを追加
+      # For SSE streaming, add alt=sse to query parameters
       if is_streaming
         query_parameters = query_parameters.merge(alt: 'sse')
       end
       
-      # Gemini APIではAPIキーをクエリパラメータとして渡す
+      # In Gemini API, API key is passed as a query parameter
       query_params = query_parameters.merge(key: @api_key)
       
-      # ストリーミングモードの場合
+      # Streaming mode
       if is_streaming
         handle_streaming_request(path, parameters, query_params, stream_proc)
       else
-        # 通常の一括レスポンスモード
+        # Normal batch response mode
         parse_json(conn.post(uri(path: path)) do |req|
           configure_json_post_request(req, parameters)
           req.params = req.params.merge(query_params)
@@ -60,39 +60,21 @@ module Gemini
         req.params = { key: @api_key }
       end&.body)
     end
-    
-    # JSONレスポンスをパースするメソッド
-    # @param response [String] パースするJSONレスポンス
-    # @return [Hash, Array, String] パースされたJSONオブジェクトまたは元の文字列
-    def parse_json(response)
-      return unless response
-      return response unless response.is_a?(String)
-
-      original_response = response.dup
-      if response.include?("}\n{")
-        # 複数行のJSONオブジェクトらしきものをJSON配列に変換する
-        response = response.gsub("}\n{", "},{").prepend("[").concat("]")
-      end
-
-      JSON.parse(response)
-    rescue JSON::ParserError
-      original_response
-    end
 
     private
     
-    # ストリーミングリクエストを処理
+    # Process streaming request
     def handle_streaming_request(path, parameters, query_params, stream_proc)
-      # リクエストパラメータのコピーを作成
+      # Create a copy of request parameters
       req_parameters = parameters.dup
       
-      # ストリーミングプロシージャを削除（JSONシリアライズに失敗するため）
+      # Remove the streaming procedure (it would fail JSON serialization)
       req_parameters.delete(:stream)
       
-      # SSEストリーミング用に応答を蓄積する変数
+      # Variable to accumulate response for SSE streaming
       accumulated_json = nil
       
-      # Faradayリクエストを実行
+      # Execute Faraday request
       connection = conn
       
       begin
@@ -101,22 +83,22 @@ module Gemini
           req.params = query_params
           req.body = req_parameters.to_json
           
-          # SSEストリーミングイベントを処理するコールバック
+          # Callback to process SSE streaming events
           req.options.on_data = proc do |chunk, _bytes, env|
             if env && env.status != 200
               raise_error = Faraday::Response::RaiseError.new
               raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
             end
             
-            # SSEフォーマットの行を処理
+            # Process SSE format lines
             process_sse_chunk(chunk, stream_proc) do |parsed_json|
-              # 最初の有効なJSONを保存
+              # Save the first valid JSON
               accumulated_json ||= parsed_json
             end
           end
         end
         
-        # 全体のレスポンスを返す
+        # Return the complete response
         return accumulated_json || {}
       rescue => e
         log_streaming_error(e) if @log_errors
@@ -124,26 +106,26 @@ module Gemini
       end
     end
     
-    # SSEチャンクを処理
+    # Process SSE chunk
     def process_sse_chunk(chunk, user_proc)
-      # チャンクを行に分割
+      # Split chunk into lines
       chunk.each_line do |line|
-        # "data:"で始まる行だけを処理
+        # Only process lines that start with "data:"
         if line.start_with?("data:")
-          # "data:"プレフィックスを取り除く
+          # Remove "data:" prefix
           data = line[5..-1].strip
           
-          # 終了マーカーをチェック
+          # Check for end marker
           next if data == "[DONE]"
           
           begin
-            # JSONをパース
+            # Parse JSON
             parsed_json = JSON.parse(data)
             
-            # ユーザープロシージャにパースしたJSONを渡す
+            # Pass parsed JSON to user procedure
             user_proc.call(parsed_json)
             
-            # 呼び出し元に渡す
+            # Pass to caller
             yield parsed_json if block_given?
           rescue JSON::ParserError => e
             log_json_error(e, data) if @log_errors
@@ -152,18 +134,33 @@ module Gemini
       end
     end
     
-    # ストリーミングエラーをログに記録
+    # Log streaming error
     def log_streaming_error(error)
-      STDERR.puts "[Gemini::HTTP] ストリーミングエラー: #{error.message}"
+      STDERR.puts "[Gemini::HTTP] Streaming error: #{error.message}"
       STDERR.puts error.backtrace.join("\n") if ENV["DEBUG"]
     end
     
-    # JSON解析エラーをログに記録
+    # Log JSON parsing error
     def log_json_error(error, data)
-      STDERR.puts "[Gemini::HTTP] JSON解析エラー: #{error.message}, データ: #{data[0..100]}..." if ENV["DEBUG"]
+      STDERR.puts "[Gemini::HTTP] JSON parsing error: #{error.message}, data: #{data[0..100]}..." if ENV["DEBUG"]
     end
-    
-    # ストリーミングレスポンスを処理するためのプロシージャを生成
+
+    def parse_json(response)
+      return unless response
+      return response unless response.is_a?(String)
+
+      original_response = response.dup
+      if response.include?("}\n{")
+        # Convert multi-line JSON objects to JSON array
+        response = response.gsub("}\n{", "},{").prepend("[").concat("]")
+      end
+
+      JSON.parse(response)
+    rescue JSON::ParserError
+      original_response
+    end
+
+    # Generate procedure to handle streaming response
     def to_json_stream(user_proc:)
       proc do |chunk, _bytes, env|
         if env && env.status != 200
@@ -171,7 +168,7 @@ module Gemini
           raise_error.on_complete(env.merge(body: try_parse_json(chunk)))
         end
 
-        # Gemini APIのストリーミングレスポンス形式に合わせた処理
+        # Process according to Gemini API streaming response format
         parsed_chunk = try_parse_json(chunk)
         user_proc.call(parsed_chunk) if parsed_chunk
       end
@@ -197,11 +194,11 @@ module Gemini
 
     def multipart_parameters(parameters)
       parameters&.transform_values do |value|
-        next value unless value.respond_to?(:close) # FileまたはIOオブジェクト
+        next value unless value.respond_to?(:close) # File or IO object
 
-        # ファイルパスがあれば取得
+        # Get file path if available
         path = value.respond_to?(:path) ? value.path : nil
-        # MIMEタイプは空文字で渡す
+        # Pass empty string for MIME type
         Faraday::UploadIO.new(value, "", path)
       end
     end
@@ -211,9 +208,9 @@ module Gemini
 
       if parameters[:stream].respond_to?(:call)
         req.options.on_data = to_json_stream(user_proc: parameters[:stream])
-        req_parameters[:stream] = true # Gemini APIにストリーミングを指示する
+        req_parameters[:stream] = true # Instruct Gemini API to stream
       elsif parameters[:stream]
-        raise ArgumentError, "stream パラメータは Proc か #call メソッドを持つものである必要があります"
+        raise ArgumentError, "stream parameter must be a Proc or have a #call method"
       end
 
       req.headers = headers

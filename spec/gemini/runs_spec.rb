@@ -16,13 +16,13 @@ RSpec.describe Gemini::Runs do
     allow(SecureRandom).to receive(:uuid).and_return(run_id)
     allow(Time).to receive(:now).and_return(Time.at(1234567890))
     
-    # スレッドの存在確認メソッド
+    # Thread existence check method
     allow(threads).to receive(:retrieve).with(id: thread_id).and_return({ 'id' => thread_id })
     
-    # スレッドのモデル取得メソッド
+    # Thread model retrieval method
     allow(threads).to receive(:get_model).with(id: thread_id).and_return('gemini-2.0-flash-lite')
     
-    # メッセージ一覧取得のモック
+    # Message list retrieval mock
     allow(messages).to receive(:list).with(thread_id: thread_id).and_return({
       'data' => [
         {
@@ -35,7 +35,7 @@ RSpec.describe Gemini::Runs do
       ]
     })
     
-    # チャットレスポンスのモック
+    # Chat response mock
     allow(client).to receive(:chat).and_return({
       'candidates' => [
         {
@@ -48,7 +48,7 @@ RSpec.describe Gemini::Runs do
       ]
     })
     
-    # メッセージ作成のモック
+    # Message creation mock
     allow(messages).to receive(:create).and_return({
       'id' => 'response-message-id',
       'role' => 'model',
@@ -59,8 +59,8 @@ RSpec.describe Gemini::Runs do
   end
 
   describe '#create' do
-    context '有効なスレッドIDでの実行' do
-      it '新しい実行を作成して結果を返す' do
+    context 'with valid thread ID' do
+      it 'creates a new run and returns result' do
         result = runs.create(thread_id: thread_id)
 
         expect(result).to include(
@@ -72,7 +72,7 @@ RSpec.describe Gemini::Runs do
           'model' => 'gemini-2.0-flash-lite'
         )
         
-        # メッセージが作成されたことを確認
+        # Verify message was created
         expect(messages).to have_received(:create).with(
           thread_id: thread_id,
           parameters: {
@@ -83,22 +83,22 @@ RSpec.describe Gemini::Runs do
       end
     end
 
-    context 'カスタムモデルパラメータでの実行' do
-      it '指定されたモデルで実行を作成する' do
+    context 'with custom model parameter' do
+      it 'creates a run with specified model' do
         custom_model = 'gemini-1.5-flash-8b'
         result = runs.create(thread_id: thread_id, parameters: { model: custom_model })
 
         expect(result['model']).to eq(custom_model)
         
-        # 適切なパラメータでchat呼び出しが行われたことを確認
+        # Verify chat was called with appropriate parameters
         expect(client).to have_received(:chat).with(
           parameters: hash_including(model: custom_model)
         )
       end
     end
 
-    context 'メタデータを含む実行' do
-      it 'メタデータ付きで実行を作成する' do
+    context 'with metadata' do
+      it 'creates a run with metadata' do
         metadata = { 'purpose' => 'testing' }
         result = runs.create(thread_id: thread_id, parameters: { metadata: metadata })
 
@@ -106,8 +106,8 @@ RSpec.describe Gemini::Runs do
       end
     end
 
-    context '存在しないスレッドIDの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent thread ID' do
+      it 'raises an error' do
         invalid_thread_id = 'invalid-thread'
         allow(threads).to receive(:retrieve).with(id: invalid_thread_id)
           .and_raise(Gemini::Error.new('Thread not found', 'thread_not_found'))
@@ -118,14 +118,14 @@ RSpec.describe Gemini::Runs do
       end
     end
 
-    context 'APIレスポンスにcandidatesがない場合' do
-      it '応答のないランを作成する' do
+    context 'when API response has no candidates' do
+      it 'creates a run with no response' do
         allow(client).to receive(:chat).and_return({ 'candidates' => [] })
         
         result = runs.create(thread_id: thread_id)
         
         expect(result['status']).to eq('completed')
-        # メッセージ作成が呼ばれないことを確認
+        # Verify message creation was not called
         expect(messages).not_to have_received(:create).with(
           hash_including(role: 'model')
         )
@@ -135,12 +135,12 @@ RSpec.describe Gemini::Runs do
 
   describe '#retrieve' do
     before do
-      # 事前に実行を作成
+      # Create a run first
       runs.create(thread_id: thread_id)
     end
 
-    context '存在する実行の場合' do
-      it '実行情報を取得する' do
+    context 'with existing run' do
+      it 'retrieves run information' do
         result = runs.retrieve(thread_id: thread_id, id: run_id)
 
         expect(result).to include(
@@ -149,21 +149,21 @@ RSpec.describe Gemini::Runs do
           'status' => 'completed'
         )
         
-        # レスポンスフィールドが含まれていないことを確認
+        # Verify response field is not included
         expect(result).not_to have_key('response')
       end
     end
 
-    context '存在しない実行IDの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent run ID' do
+      it 'raises an error' do
         expect {
           runs.retrieve(thread_id: thread_id, id: 'non-existent-id')
         }.to raise_error(Gemini::Error, 'Run not found')
       end
     end
 
-    context '異なるスレッドIDでの取得の場合' do
-      it 'エラーを発生させる' do
+    context 'when retrieving with different thread ID' do
+      it 'raises an error' do
         expect {
           runs.retrieve(thread_id: 'different-thread-id', id: run_id)
         }.to raise_error(Gemini::Error, 'Run does not belong to thread')

@@ -11,15 +11,15 @@ RSpec.describe Gemini::Messages do
 
   before do
     allow(client).to receive(:threads).and_return(threads)
-    # スレッドがデフォルトでは存在するという想定
+    # Assume thread exists by default
     allow(threads).to receive(:retrieve).with(id: thread_id).and_return({ 'id' => thread_id })
     allow(SecureRandom).to receive(:uuid).and_return(message_id)
     allow(Time).to receive(:now).and_return(Time.at(1234567890))
   end
 
   describe '#create' do
-    context '有効なスレッドIDとパラメータで作成' do
-      it '新しいメッセージを作成して返す' do
+    context 'with valid thread ID and parameters' do
+      it 'creates and returns a new message' do
         result = messages.create(
           thread_id: thread_id,
           parameters: {
@@ -36,7 +36,7 @@ RSpec.describe Gemini::Messages do
           'role' => 'user'
         )
 
-        # コンテンツのフォーマットが正しいか確認
+        # Check content formatting is correct
         expect(result['content']).to be_an(Array)
         expect(result['content'].first).to include(
           'type' => 'text',
@@ -45,8 +45,8 @@ RSpec.describe Gemini::Messages do
       end
     end
 
-    context 'デフォルトロールを使用' do
-      it 'デフォルトロール（user）でメッセージを作成する' do
+    context 'using default role' do
+      it 'creates a message with default role (user)' do
         result = messages.create(
           thread_id: thread_id,
           parameters: {
@@ -58,8 +58,8 @@ RSpec.describe Gemini::Messages do
       end
     end
 
-    context '配列コンテンツでの作成' do
-      it '複数のテキストアイテムを含むメッセージを作成する' do
+    context 'with array content' do
+      it 'creates a message with multiple text items' do
         content = ['Hello', 'world']
         result = messages.create(
           thread_id: thread_id,
@@ -74,8 +74,8 @@ RSpec.describe Gemini::Messages do
       end
     end
 
-    context '存在しないスレッドIDの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent thread ID' do
+      it 'raises an error' do
         invalid_thread_id = 'invalid-thread'
         allow(threads).to receive(:retrieve).with(id: invalid_thread_id)
           .and_raise(Gemini::Error.new('Thread not found', 'thread_not_found'))
@@ -88,9 +88,9 @@ RSpec.describe Gemini::Messages do
   end
 
   describe '#list' do
-    context 'メッセージが存在する場合' do
+    context 'when messages exist' do
       before do
-        # スレッドにメッセージを追加
+        # Add messages to thread
         messages.create(
           thread_id: thread_id,
           parameters: { content: 'Message 1' }
@@ -102,7 +102,7 @@ RSpec.describe Gemini::Messages do
         )
       end
 
-      it 'スレッド内の全メッセージをリストアップする' do
+      it 'lists all messages in the thread' do
         result = messages.list(thread_id: thread_id)
 
         expect(result['object']).to eq('list')
@@ -113,8 +113,8 @@ RSpec.describe Gemini::Messages do
       end
     end
 
-    context 'メッセージが存在しない場合' do
-      it '空のリストを返す' do
+    context 'when no messages exist' do
+      it 'returns an empty list' do
         result = messages.list(thread_id: thread_id)
 
         expect(result['object']).to eq('list')
@@ -125,8 +125,8 @@ RSpec.describe Gemini::Messages do
       end
     end
 
-    context '存在しないスレッドIDの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent thread ID' do
+      it 'raises an error' do
         invalid_thread_id = 'invalid-thread'
         allow(threads).to receive(:retrieve).with(id: invalid_thread_id)
           .and_raise(Gemini::Error.new('Thread not found', 'thread_not_found'))
@@ -139,7 +139,7 @@ RSpec.describe Gemini::Messages do
   end
 
   describe '#retrieve' do
-    context '存在するメッセージの場合' do
+    context 'with existing message' do
       before do
         messages.create(
           thread_id: thread_id,
@@ -147,7 +147,7 @@ RSpec.describe Gemini::Messages do
         )
       end
 
-      it 'メッセージを取得する' do
+      it 'retrieves the message' do
         result = messages.retrieve(thread_id: thread_id, id: message_id)
 
         expect(result).to include(
@@ -158,8 +158,8 @@ RSpec.describe Gemini::Messages do
       end
     end
 
-    context '存在しないメッセージの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent message' do
+      it 'raises an error' do
         expect {
           messages.retrieve(thread_id: thread_id, id: 'non-existent-id')
         }.to raise_error(Gemini::Error, 'Message not found')
@@ -177,7 +177,7 @@ RSpec.describe Gemini::Messages do
       )
     end
 
-    it 'メッセージのメタデータを更新する' do
+    it 'updates message metadata' do
       result = messages.modify(
         thread_id: thread_id,
         id: message_id,
@@ -185,13 +185,13 @@ RSpec.describe Gemini::Messages do
       )
 
       expect(result['metadata']).to eq(metadata)
-      # メタデータが実際に保存されていることを確認
+      # Verify metadata was actually saved
       retrieved = messages.retrieve(thread_id: thread_id, id: message_id)
       expect(retrieved['metadata']).to eq(metadata)
     end
 
-    context '存在しないメッセージの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent message' do
+      it 'raises an error' do
         expect {
           messages.modify(
             thread_id: thread_id,
@@ -211,7 +211,7 @@ RSpec.describe Gemini::Messages do
       )
     end
 
-    it 'メッセージを論理削除する' do
+    it 'logically deletes the message' do
       result = messages.delete(thread_id: thread_id, id: message_id)
 
       expect(result).to include(
@@ -220,13 +220,13 @@ RSpec.describe Gemini::Messages do
         'deleted' => true
       )
 
-      # 削除したメッセージがリストに表示されないことを確認
+      # Verify deleted message doesn't appear in list
       list_result = messages.list(thread_id: thread_id)
       expect(list_result['data']).to be_empty
     end
 
-    context '存在しないメッセージの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent message' do
+      it 'raises an error' do
         expect {
           messages.delete(thread_id: thread_id, id: 'non-existent-id')
         }.to raise_error(Gemini::Error, 'Message not found')
@@ -235,21 +235,21 @@ RSpec.describe Gemini::Messages do
   end
 
   describe '#format_content' do
-    # privateメソッドをテストするためのヘルパーメソッド
+    # Helper method to test private method
     def format_content(content)
       messages.send(:format_content, content)
     end
 
-    context '文字列の場合' do
-      it '適切な形式にフォーマットする' do
+    context 'with string input' do
+      it 'formats to proper structure' do
         result = format_content('Simple text')
         
         expect(result).to eq([{ 'type' => 'text', 'text' => { 'value' => 'Simple text' } }])
       end
     end
 
-    context '配列の場合' do
-      it '各アイテムを適切な形式にフォーマットする' do
+    context 'with array input' do
+      it 'formats each item to proper structure' do
         result = format_content(['Item 1', 'Item 2'])
         
         expect(result).to eq([
@@ -259,8 +259,8 @@ RSpec.describe Gemini::Messages do
       end
     end
 
-    context 'ハッシュの場合' do
-      it 'ハッシュを配列化する' do
+    context 'with hash input' do
+      it 'wraps hash in an array' do
         content = { 'type' => 'text', 'text' => { 'value' => 'Hash content' } }
         result = format_content(content)
         
@@ -268,8 +268,8 @@ RSpec.describe Gemini::Messages do
       end
     end
 
-    context 'その他のオブジェクトの場合' do
-      it '文字列に変換してフォーマットする' do
+    context 'with other object types' do
+      it 'converts to string and formats' do
         result = format_content(123)
         
         expect(result).to eq([{ 'type' => 'text', 'text' => { 'value' => '123' } }])

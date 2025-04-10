@@ -7,8 +7,8 @@ RSpec.describe Gemini::Threads do
   let(:threads) { Gemini::Threads.new(client: client) }
 
   describe '#create' do
-    context '基本パラメータのみで作成' do
-      it 'スレッドを作成しIDを返す' do
+    context 'with basic parameters only' do
+      it 'creates a thread and returns ID' do
         allow(SecureRandom).to receive(:uuid).and_return('test-thread-id')
         allow(Time).to receive(:now).and_return(Time.at(1234567890))
 
@@ -23,8 +23,8 @@ RSpec.describe Gemini::Threads do
       end
     end
 
-    context 'メタデータを指定して作成' do
-      it 'メタデータ付きでスレッドを作成する' do
+    context 'with metadata specified' do
+      it 'creates a thread with metadata' do
         allow(SecureRandom).to receive(:uuid).and_return('test-thread-id')
         allow(Time).to receive(:now).and_return(Time.at(1234567890))
         
@@ -40,27 +40,27 @@ RSpec.describe Gemini::Threads do
       end
     end
 
-    context 'モデルを指定して作成' do
-      it '指定したモデルでスレッドを作成する' do
+    context 'with model specified' do
+      it 'creates a thread with specified model' do
         allow(SecureRandom).to receive(:uuid).and_return('test-thread-id')
         
         result = threads.create(parameters: { model: 'gemini-2.0-pro' })
         
-        # 直接返り値にはモデル情報が含まれないため、内部状態を確認
+        # Model info is not included in direct return value, check internal state
         expect(threads.get_model(id: 'test-thread-id')).to eq('gemini-2.0-pro')
       end
     end
   end
 
   describe '#retrieve' do
-    context '存在するスレッドの場合' do
+    context 'with existing thread' do
       before do
         allow(SecureRandom).to receive(:uuid).and_return('test-thread-id')
         allow(Time).to receive(:now).and_return(Time.at(1234567890))
         threads.create
       end
 
-      it 'スレッド情報を取得する' do
+      it 'retrieves thread information' do
         result = threads.retrieve(id: 'test-thread-id')
 
         expect(result).to include(
@@ -72,8 +72,8 @@ RSpec.describe Gemini::Threads do
       end
     end
 
-    context '存在しないスレッドの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent thread' do
+      it 'raises an error' do
         expect {
           threads.retrieve(id: 'non-existent-id')
         }.to raise_error(Gemini::Error, "Thread not found")
@@ -88,13 +88,13 @@ RSpec.describe Gemini::Threads do
       threads.create
     end
 
-    context 'メタデータを変更' do
-      it 'スレッドのメタデータを更新する' do
+    context 'modifying metadata' do
+      it 'updates thread metadata' do
         new_metadata = { 'user_id' => '456', 'priority' => 'high' }
         result = threads.modify(id: 'test-thread-id', parameters: { metadata: new_metadata })
 
         expect(result['metadata']).to eq(new_metadata)
-        # 他の属性は変更されていないことを確認
+        # Verify other attributes remain unchanged
         expect(result).to include(
           'id' => 'test-thread-id',
           'object' => 'thread',
@@ -103,17 +103,17 @@ RSpec.describe Gemini::Threads do
       end
     end
 
-    context 'モデルを変更' do
-      it 'スレッドのモデルを更新する' do
+    context 'modifying model' do
+      it 'updates thread model' do
         threads.modify(id: 'test-thread-id', parameters: { model: 'gemini-2.0-pro' })
         
-        # get_modelメソッドで内部状態を確認
+        # Check internal state with get_model
         expect(threads.get_model(id: 'test-thread-id')).to eq('gemini-2.0-pro')
       end
     end
 
-    context '存在しないスレッドの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent thread' do
+      it 'raises an error' do
         expect {
           threads.modify(id: 'non-existent-id', parameters: { metadata: {} })
         }.to raise_error(Gemini::Error, "Thread not found")
@@ -127,8 +127,8 @@ RSpec.describe Gemini::Threads do
       threads.create
     end
 
-    context '存在するスレッドの場合' do
-      it 'スレッドを削除する' do
+    context 'with existing thread' do
+      it 'deletes the thread' do
         result = threads.delete(id: 'test-thread-id')
 
         expect(result).to include(
@@ -137,15 +137,15 @@ RSpec.describe Gemini::Threads do
           'deleted' => true
         )
 
-        # 削除後にアクセスするとエラーが発生することを確認
+        # Verify access after deletion raises error
         expect {
           threads.retrieve(id: 'test-thread-id')
         }.to raise_error(Gemini::Error, "Thread not found")
       end
     end
 
-    context '存在しないスレッドの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent thread' do
+      it 'raises an error' do
         expect {
           threads.delete(id: 'non-existent-id')
         }.to raise_error(Gemini::Error, "Thread not found")
@@ -159,14 +159,14 @@ RSpec.describe Gemini::Threads do
       threads.create(parameters: { model: 'gemini-2.0-flash-lite' })
     end
 
-    context '存在するスレッドの場合' do
-      it 'スレッドのモデルを取得する' do
+    context 'with existing thread' do
+      it 'retrieves thread model' do
         expect(threads.get_model(id: 'test-thread-id')).to eq('gemini-2.0-flash-lite')
       end
     end
 
-    context '存在しないスレッドの場合' do
-      it 'エラーを発生させる' do
+    context 'with non-existent thread' do
+      it 'raises an error' do
         expect {
           threads.get_model(id: 'non-existent-id')
         }.to raise_error(Gemini::Error, "Thread not found")

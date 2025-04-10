@@ -5,7 +5,7 @@ module Gemini
       @threads = {}
     end
 
-    # スレッドの取得
+    # Retrieve a thread
     def retrieve(id:)
       thread = @threads[id]
       raise Error.new("Thread not found", "thread_not_found") unless thread
@@ -18,7 +18,7 @@ module Gemini
       }
     end
 
-    # 新しいスレッドの作成
+    # Create a new thread
     def create(parameters: {})
       thread_id = SecureRandom.uuid
       created_at = Time.now.to_i
@@ -38,12 +38,12 @@ module Gemini
       }
     end
 
-    # スレッドの変更
+    # Modify a thread
     def modify(id:, parameters: {})
       thread = @threads[id]
       raise Error.new("Thread not found", "thread_not_found") unless thread
       
-      # 変更可能なパラメータを適用
+      # Apply modifiable parameters
       thread[:metadata] = parameters[:metadata] if parameters[:metadata]
       thread[:model] = parameters[:model] if parameters[:model]
       
@@ -55,7 +55,7 @@ module Gemini
       }
     end
 
-    # スレッドの削除
+    # Delete a thread
     def delete(id:)
       raise Error.new("Thread not found", "thread_not_found") unless @threads[id]
       @threads.delete(id)
@@ -63,7 +63,7 @@ module Gemini
       { "id" => id, "object" => "thread.deleted", "deleted" => true }
     end
 
-    # 内部使用：スレッドのモデルを取得
+    # Internal use: Get thread model
     def get_model(id:)
       thread = @threads[id]
       raise Error.new("Thread not found", "thread_not_found") unless thread

@@ -20,7 +20,7 @@ RSpec.describe Gemini::Files do
     let(:test_file) { instance_double('File') }
     let(:file_path) { '/path/to/file.mp3' }
     let(:file_size) { 1024 }
-    let(:file_data) { 'テストファイルデータ' }
+    let(:file_data) { 'Test file data' }
     let(:upload_url) { 'https://upload-url.example.com' }
     let(:initial_response) { instance_double('Faraday::Response') }
     let(:upload_response) { instance_double('Faraday::Response') }
@@ -41,11 +41,11 @@ RSpec.describe Gemini::Files do
       
       allow(conn).to receive(:post).and_return(initial_response, upload_response)
       
-      # JSON.parseをモック
+      # Mock JSON.parse
       allow(JSON).to receive(:parse).with(response_body).and_return(parsed_response)
     end
 
-    it 'リクエストを適切なヘッダーで初期化する' do
+    it 'initializes request with appropriate headers' do
       files.upload(file: test_file)
       
       expect(conn).to have_received(:post).with("https://generativelanguage.googleapis.com/upload/v1beta/files") do |&block|
@@ -71,7 +71,7 @@ RSpec.describe Gemini::Files do
       end
     end
 
-    it 'ファイルデータをアップロードURLにアップロードする' do
+    it 'uploads file data to the upload URL' do
       files.upload(file: test_file)
       
       expect(conn).to have_received(:post).with(upload_url) do |&block|
@@ -91,31 +91,31 @@ RSpec.describe Gemini::Files do
       end
     end
 
-    it 'パースされたレスポンスを返す' do
+    it 'returns parsed response' do
       result = files.upload(file: test_file)
       
-      # client.parse_jsonの代わりにJSON.parseを使用するように変更
+      # Using JSON.parse instead of client.parse_json
       expect(JSON).to have_received(:parse).with(response_body)
       expect(result).to eq(parsed_response)
     end
     
-    context 'ファイルが指定されていない場合' do
-      it 'ArgumentErrorを発生させる' do
+    context 'when no file is specified' do
+      it 'raises ArgumentError' do
         expect { 
           files.upload(file: nil) 
-        }.to raise_error(ArgumentError, "ファイルが指定されていません")
+        }.to raise_error(ArgumentError, "No file specified")
       end
     end
 
-    context 'アップロードURLが取得できない場合' do
+    context 'when upload URL cannot be obtained' do
       before do
         allow(initial_response).to receive(:headers).and_return({})
       end
 
-      it 'エラーを発生させる' do
+      it 'raises an error' do
         expect { 
           files.upload(file: test_file) 
-        }.to raise_error("アップロードURLを取得できませんでした")
+        }.to raise_error("Failed to obtain upload URL")
       end
     end
   end
@@ -127,15 +127,15 @@ RSpec.describe Gemini::Files do
       allow(client).to receive(:get).with(path: file_name).and_return(file_metadata)
     end
 
-    it 'ファイルのメタデータを取得する' do
+    it 'retrieves file metadata' do
       result = files.get(name: file_name)
       
       expect(client).to have_received(:get).with(path: file_name)
       expect(result).to eq(file_metadata)
     end
 
-    context 'files/プレフィックスなしのファイル名が渡された場合' do
-      it 'files/プレフィックスを追加する' do
+    context 'when file name without files/ prefix is provided' do
+      it 'adds files/ prefix' do
         files.get(name: 'test-file-123')
         
         expect(client).to have_received(:get).with(path: file_name)
@@ -153,14 +153,14 @@ RSpec.describe Gemini::Files do
       ).and_return(file_list)
     end
 
-    it 'ファイル一覧を取得する' do
+    it 'retrieves file list' do
       result = files.list
       
       expect(client).to have_received(:get).with(path: 'files', parameters: {})
       expect(result).to eq(file_list)
     end
 
-    context 'ページネーションパラメータを指定した場合' do
+    context 'when pagination parameters are specified' do
       let(:pagination_params) { { pageSize: 5, pageToken: 'next-token' } }
       
       before do
@@ -170,7 +170,7 @@ RSpec.describe Gemini::Files do
         ).and_return(file_list.merge({ 'nextPageToken' => 'another-token' }))
       end
 
-      it 'パラメータを指定してリクエストする' do
+      it 'makes request with specified parameters' do
         result = files.list(page_size: 5, page_token: 'next-token')
         
         expect(client).to have_received(:get).with(path: 'files', parameters: pagination_params)
@@ -186,15 +186,15 @@ RSpec.describe Gemini::Files do
       allow(client).to receive(:delete).with(path: file_name).and_return(delete_result)
     end
 
-    it 'ファイルを削除する' do
+    it 'deletes the file' do
       result = files.delete(name: file_name)
       
       expect(client).to have_received(:delete).with(path: file_name)
       expect(result).to eq(delete_result)
     end
 
-    context 'files/プレフィックスなしのファイル名が渡された場合' do
-      it 'files/プレフィックスを追加する' do
+    context 'when file name without files/ prefix is provided' do
+      it 'adds files/ prefix' do
         files.delete(name: 'test-file-123')
         
         expect(client).to have_received(:delete).with(path: file_name)

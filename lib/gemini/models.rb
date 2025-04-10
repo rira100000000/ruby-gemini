@@ -12,9 +12,9 @@ module Gemini
       @client.get(path: "models/#{id}")
     end
 
-    # Gemini APIでは現在モデル削除APIが提供されていないため互換性のためのスタブ
+    # Stub for compatibility, as Gemini API currently doesn't provide model deletion
     def delete(id:)
-      raise NotImplementedError, "Gemini APIではモデル削除機能は提供されていません"
+      raise NotImplementedError, "Model deletion is not supported in Gemini API"
     end
   end
 end

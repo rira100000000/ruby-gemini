@@ -10,24 +10,24 @@ RSpec.describe Gemini::HTTPHeaders do
   let(:instance) { test_class.new }
 
   describe "#add_headers" do
-    it "adds headers" do # ヘッダーを追加できる
+    it "adds headers" do
       instance.add_headers({ "X-Custom-Header" => "value" })
       expect(instance.send(:headers)).to include("X-Custom-Header" => "value")
     end
 
-    it "converts symbol keys to strings" do # シンボルキーを文字列に変換する
+    it "converts symbol keys to strings" do
       instance.add_headers({ :"X-Custom-Header" => "value" })
       expect(instance.send(:headers)).to include("X-Custom-Header" => "value")
     end
 
-    it "overwrites existing headers" do # 既存のヘッダーを上書きする
+    it "overwrites existing headers" do
       instance.add_headers({ "Content-Type" => "application/xml" })
       expect(instance.send(:headers)).to include("Content-Type" => "application/xml")
     end
   end
 
   describe "#headers" do
-    it "includes default headers" do # デフォルトヘッダーを含む
+    it "includes default headers" do
       headers = instance.send(:headers)
       expect(headers).to include(
         "Content-Type" => "application/json",
@@ -35,7 +35,7 @@ RSpec.describe Gemini::HTTPHeaders do
       )
     end
 
-    it "includes added headers" do # 追加されたヘッダーを含む
+    it "includes added headers" do
       instance.add_headers({ "X-Custom-Header" => "value" })
       headers = instance.send(:headers)
       expect(headers).to include("X-Custom-Header" => "value")

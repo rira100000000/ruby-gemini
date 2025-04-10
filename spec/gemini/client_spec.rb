@@ -78,7 +78,7 @@ RSpec.describe Gemini::Client do
     end
 
     before do
-      # 実際に使用されているモデル名に合わせる
+      # Match the actual model name being used
       stub_request(:post, "#{base_url}/models/gemini-2.0-flash-lite:generateContent?key=#{api_key}")
         .with(
           body: params.to_json,
@@ -96,7 +96,7 @@ RSpec.describe Gemini::Client do
     let(:params) do
       {
         content: { parts: [{ text: "Ruby programming" }] }
-        # model パラメータは含めない（実際のリクエストに合わせる）
+        # Don't include model parameter (to match actual request)
       }
     end
     let(:response_body) do
@@ -108,7 +108,7 @@ RSpec.describe Gemini::Client do
     end
 
     before do
-      # 実際のリクエストに合わせてスタブを修正
+      # Adjust stub to match actual request
       stub_request(:post, "#{base_url}/models/text-embedding-model:embedContent?key=#{api_key}")
         .with(
           body: params.to_json,

@@ -9,11 +9,11 @@ module Gemini
     attr_writer :api_key
     
     def initialize(api_key = nil, config = {}, &faraday_middleware)
-      # APIキーが直接引数として渡された場合の処理
+      # Handle API key passed directly as argument
       config[:api_key] = api_key if api_key
       
       CONFIG_KEYS.each do |key|
-        # インスタンス変数を設定。設定がなければグローバル設定を使用
+        # Set instance variables. Use global config if no setting provided
         instance_variable_set(
           "@#{key}",
           config[key].nil? ? Gemini.configuration.send(key) : config[key]
@@ -23,30 +23,28 @@ module Gemini
       @api_key ||= ENV["GEMINI_API_KEY"]
       @faraday_middleware = faraday_middleware
       
-      raise ConfigurationError, "API キーが設定されていません" unless @api_key
+      raise ConfigurationError, "API key is not set" unless @api_key
     end
     
-    # スレッド管理へのアクセサ
+    # Thread management accessor
     def threads
       @threads ||= Gemini::Threads.new(client: self)
     end
     
-    # メッセージ管理へのアクセサ
+    # Message management accessor
     def messages
       @messages ||= Gemini::Messages.new(client: self)
     end
     
-    # 実行管理へのアクセサ
+    # Run management accessor
     def runs
       @runs ||= Gemini::Runs.new(client: self)
     end
 
-    # 音声処理へのアクセサ
     def audio
       @audio ||= Gemini::Audio.new(client: self)
     end
 
-    # ファイル管理へのアクセサ（新しく追加）
     def files
       @files ||= Gemini::Files.new(client: self)
     end
@@ -55,54 +53,54 @@ module Gemini
       @extra_headers = {}
     end
     
-    # Audio機能用のconn（Faraday接続）へのアクセス
-    # HTTPモジュールのprivateメソッドを外部から使用できるようにするためのラッパー
+    # Access to conn (Faraday connection) for Audio features
+    # Wrapper to allow using private methods from HTTP module externally
     def conn(multipart: false)
       super(multipart: multipart)
     end
     
-    # OpenAIの chat に似た、Gemini APIのテキスト生成メソッド
-    # ストリーミングコールバックにも対応するように拡張
+    # OpenAI chat-like text generation method for Gemini API
+    # Extended to support streaming callbacks
     def chat(parameters: {}, &stream_callback)
       model = parameters.delete(:model) || "gemini-2.0-flash-lite"
       
-      # ストリーミングコールバックが渡された場合
+      # If streaming callback is provided
       if block_given?
         path = "models/#{model}:streamGenerateContent"
-        # ストリームコールバックを設定
+        # Set up stream callback
         stream_params = parameters.dup
         stream_params[:stream] = proc { |chunk| process_stream_chunk(chunk, &stream_callback) }
         return json_post(path: path, parameters: stream_params)
       else
-        # 通常の一括レスポンスモード
+        # Normal batch response mode
         path = "models/#{model}:generateContent"
         return json_post(path: path, parameters: parameters)
       end
     end
     
-    # OpenAIの embeddings に対応するメソッド
+    # Method corresponding to OpenAI's embeddings
     def embeddings(parameters: {})
       model = parameters.delete(:model) || "text-embedding-model"
       path = "models/#{model}:embedContent"
       json_post(path: path, parameters: parameters)
     end
     
-    # OpenAIの completions に対応するメソッド
-    # Gemini APIでは chat と同じエンドポイントを使用
+    # Method corresponding to OpenAI's completions
+    # Uses same endpoint as chat in Gemini API
     def completions(parameters: {}, &stream_callback)
       chat(parameters: parameters, &stream_callback)
     end
     
-    # サブクライアントへのアクセサ
+    # Accessor for sub-clients
     def models
       @models ||= Gemini::Models.new(client: self)
     end
     
-    # 利便性のためのヘルパーメソッド
+    # Helper methods for convenience
     
-    # OpenAIの chat に似た使い方ができるメソッド
-    # ストリーミングコールバックにも対応
-    # system_instructionパラメータを追加
+    # Method with usage similar to OpenAI's chat
+    # Supports streaming callbacks
+    # Added system_instruction parameter
     def generate_content(prompt, model: "gemini-2.0-flash-lite", system_instruction: nil, **parameters, &stream_callback)
       content = format_content(prompt)
       params = {
@@ -110,12 +108,12 @@ module Gemini
         model: model
       }
       
-      # system_instructionが提供された場合、それを追加
+      # Add system_instruction if provided
       if system_instruction
         params[:system_instruction] = format_content(system_instruction)
       end
       
-      # 他のパラメータをマージ
+      # Merge other parameters
       params.merge!(parameters)
       
       if block_given?
@@ -125,11 +123,11 @@ module Gemini
       end
     end
     
-    # ストリーミングテキスト生成
-    # 上記のgenerate_contentでも同じ機能を提供、こちらは明示的にstreamingを指定している
-    # system_instructionパラメータを追加
+    # Streaming text generation
+    # Provides same functionality as generate_content above, but explicitly for streaming
+    # Added system_instruction parameter
     def generate_content_stream(prompt, model: "gemini-2.0-flash-lite", system_instruction: nil, **parameters, &block)
-      raise ArgumentError, "ストリーミングにはブロックが必要です" unless block_given?
+      raise ArgumentError, "Block is required for streaming" unless block_given?
       
       content = format_content(prompt)
       params = {
@@ -137,18 +135,18 @@ module Gemini
         model: model
       }
       
-      # system_instructionが提供された場合、それを追加
+      # Add system_instruction if provided
       if system_instruction
         params[:system_instruction] = format_content(system_instruction)
       end
       
-      # 他のパラメータをマージ
+      # Merge other parameters
       params.merge!(parameters)
       
       chat(parameters: params, &block)
     end
 
-    # デバッグ用のinspectメソッド
+    # Debug inspect method
     def inspect
       vars = instance_variables.map do |var|
         value = instance_variable_get(var)
@@ -159,21 +157,21 @@ module Gemini
     
     private
     
-    # ストリームチャンクを処理してコールバックに渡す
+    # Process stream chunk and pass to callback
     def process_stream_chunk(chunk, &callback)
       if chunk.respond_to?(:dig) && chunk.dig("candidates", 0, "content", "parts", 0, "text")
         chunk_text = chunk.dig("candidates", 0, "content", "parts", 0, "text")
         callback.call(chunk_text, chunk)
       elsif chunk.respond_to?(:dig) && chunk.dig("candidates", 0, "content", "parts")
-        # テキストがない場合は空の部分をコールバックに渡す
+        # Pass empty part to callback if no text
         callback.call("", chunk)
       else
-        # その他の種類のチャンク（メタデータなど）は空文字列として扱う
+        # Treat other chunk types (metadata, etc.) as empty string
         callback.call("", chunk)
       end
     end
     
-    # 入力をGemini API形式に変換
+    # Convert input to Gemini API format
     def format_content(input)
       case input
       when String
