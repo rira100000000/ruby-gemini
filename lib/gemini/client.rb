@@ -101,7 +101,10 @@ module Gemini
     # Method with usage similar to OpenAI's chat
     # Supports streaming callbacks
     # Added system_instruction parameter
+    # Added support for image inputs
     def generate_content(prompt, model: "gemini-2.0-flash-lite", system_instruction: nil, **parameters, &stream_callback)
+      # For image/text combinations, the prompt is passed as an array
+      # example: [{type: "text", text: "これは何ですか？"}, {type: "image_url", image_url: {url: "https://example.com/image.jpg"}}]
       content = format_content(prompt)
       params = {
         contents: [content],
@@ -171,21 +174,119 @@ module Gemini
       end
     end
     
-    # Convert input to Gemini API format
+    # Convert input to Gemini API format with support for image inputs
     def format_content(input)
       case input
       when String
         { parts: [{ text: input }] }
       when Array
-        if input.all? { |part| part.is_a?(Hash) && part.key?(:text) }
-          { parts: input }
-        else
-          { parts: input.map { |text| { text: text.to_s } } }
+        # For arrays, convert each element to part form
+        processed_parts = input.map do |part|
+          if part.is_a?(Hash) && part[:type]
+            case part[:type]
+            when "text"
+              { text: part[:text] }
+            when "image_url"
+              # Convert to Gemini API format
+              { 
+                inline_data: {
+                  mime_type: determine_mime_type(part[:image_url][:url]),
+                  data: encode_image_from_url(part[:image_url][:url])
+                }
+              }
+            when "image_file"
+              {
+                inline_data: {
+                  mime_type: determine_mime_type(part[:image_file][:file_path]),
+                  data: encode_image_from_file(part[:image_file][:file_path])
+                }
+              }
+            when "image_base64"
+              {
+                inline_data: {
+                  mime_type: part[:image_base64][:mime_type],
+                  data: part[:image_base64][:data]
+                }
+              }
+            else
+              # Other types return as is
+              part
+            end
+          elsif part.respond_to?(:to_s)
+            { text: part.to_s }
+          else
+            part
+          end
         end
+        { parts: processed_parts }
       when Hash
-        input
+        if input.key?(:parts)
+          input  # If already in proper format, return as is
+        else
+          { parts: [input] }  # Wrapping the hash in parts
+        end
       else
         { parts: [{ text: input.to_s }] }
+      end
+    end
+    
+    def determine_mime_type(path_or_url)
+      extension = File.extname(path_or_url).downcase
+      case extension
+      when ".jpg", ".jpeg"
+        "image/jpeg"
+      when ".png"
+        "image/png"
+      when ".gif"
+        "image/gif"
+      when ".webp"
+        "image/webp"
+      when ".heic"
+        "image/heic"
+      when ".heif"
+        "image/heif"
+      else
+        #  cannot determine from the extension
+        if File.exist?(path_or_url)
+          # Guess MIME type by looking at the first byte of the file
+          first_bytes = File.binread(path_or_url, 8).bytes
+          case
+          when first_bytes[0..1] == [0xFF, 0xD8]
+            "image/jpeg"  # JPEG
+          when first_bytes[0..7] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+            "image/png"   # PNG
+          when first_bytes[0..2] == [0x47, 0x49, 0x46]
+            "image/gif"   # GIF
+          when first_bytes[0..3] == [0x52, 0x49, 0x46, 0x46] && first_bytes[8..11] == [0x57, 0x45, 0x42, 0x50]
+            "image/webp"  # WEBP
+          else
+            "image/jpeg"  # default
+          end
+        else
+          # If it's a URL, default to JPEG
+          "image/jpeg"
+        end
+      end
+    end
+
+    def encode_image_from_url(url)
+      require 'open-uri'
+      require 'base64'
+      begin
+        # Explicitly read in binary mode
+        data = URI.open(url, 'rb').read
+        Base64.strict_encode64(data)
+      rescue => e
+        raise Error.new("Failed to load image from URL: #{e.message}")
+      end
+    end
+
+    def encode_image_from_file(file_path)
+      require 'base64'
+      begin
+        Base64.strict_encode64(File.binread(file_path))
+      rescue => e
+        raise Error.new("Failed to load image from file: #{e.message}")
       end
     end
   end
