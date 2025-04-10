@@ -1,85 +1,85 @@
 require 'bundler/setup'
-require 'gemini'  # geminiライブラリを読み込む
+require 'gemini'  # load gemini library
 require 'logger'
 
-# ロガーの設定
+# Logger configuration
 logger = Logger.new(STDOUT)
 logger.level = Logger::INFO
 
-# APIキーを環境変数から取得
-api_key = ENV['GEMINI_API_KEY'] || raise("GEMINI_API_KEY環境変数を設定してください")
+# Get API key from environment variable
+api_key = ENV['GEMINI_API_KEY'] || raise("Please set the GEMINI_API_KEY environment variable")
 
 begin
-  # クライアントの初期化
-  logger.info "Geminiクライアントを初期化しています..."
+  # Initialize client
+  logger.info "Initializing Gemini client..."
   client = Gemini::Client.new(api_key)
   
-  puts "音声ファイルの文字起こしを開始します"
+  puts "Starting audio file transcription"
   puts "==================================="
   
-  # 音声ファイルのパスを指定
-  audio_file_path = ARGV[0] || raise("使用方法: ruby audio_demo.rb <音声ファイルのパス>")
+  # Specify audio file path
+  audio_file_path = ARGV[0] || raise("Usage: ruby audio_demo.rb <audio file path>")
   
-  # ファイルの存在確認
+  # Check if file exists
   unless File.exist?(audio_file_path)
-    raise "ファイルが見つかりません: #{audio_file_path}"
+    raise "File not found: #{audio_file_path}"
   end
   
-  # ファイル情報を表示
-  file_size = File.size(audio_file_path) / 1024.0 # KB単位
+  # Display file information
+  file_size = File.size(audio_file_path) / 1024.0 # KB unit
   file_extension = File.extname(audio_file_path)
-  puts "ファイル: #{File.basename(audio_file_path)}"
-  puts "サイズ: #{file_size.round(2)} KB"
-  puts "タイプ: #{file_extension}"
+  puts "File: #{File.basename(audio_file_path)}"
+  puts "Size: #{file_size.round(2)} KB"
+  puts "Type: #{file_extension}"
   puts "==================================="
   
-  # 処理開始時間
+  # Process start time
   start_time = Time.now
   
-  # 文字起こし実行
-  logger.info "音声ファイルをアップロードして文字起こしを実行しています..."
-  puts "処理中..."
+  # Execute transcription
+  logger.info "Uploading audio file and executing transcription..."
+  puts "Processing..."
   
-  # ファイルを開く
+  # Open file
   file = File.open(audio_file_path, "rb")
   
   begin
     response = client.audio.transcribe(
       parameters: {
-        model: "gemini-1.5-flash", # Geminiのモデルを指定
+        model: "gemini-1.5-flash", # Specify Gemini model
         file: file,
-        language: "ja", # 言語を指定（必要に応じて変更してください）
-        content_text: "この音声を文字起こししてください。"
+        language: "ja", # Specify language (change as needed)
+        content_text: "Please transcribe this audio."
       }
     )
   ensure
-    # 必ずファイルを閉じる
+    # Always close the file
     file.close
   end
   
-  # 処理終了時間と経過時間の計算
+  # Process end time and elapsed time calculation
   end_time = Time.now
   elapsed_time = end_time - start_time
   
-  # 結果表示
-  puts "\n=== 文字起こし結果 ==="
+  # Display results
+  puts "\n=== Transcription Result ==="
   puts response["text"]
   puts "======================="
-  puts "処理時間: #{elapsed_time.round(2)} 秒"
+  puts "Processing time: #{elapsed_time.round(2)} seconds"
   
-  # 生のレスポンスも確認したい場合
-  # puts "\n=== 生のレスポンス ==="
+  # If you want to check the raw response
+  # puts "\n=== Raw Response ==="
   # puts JSON.pretty_generate(response["raw_response"])
   
 rescue StandardError => e
-  logger.error "エラーが発生しました: #{e.message}"
+  logger.error "An error occurred: #{e.message}"
   logger.error e.backtrace.join("\n") if ENV["DEBUG"]
   
-  puts "\n詳細エラー情報:"
+  puts "\nDetailed error information:"
   puts "#{e.class}: #{e.message}"
   
-  # APIエラーの詳細情報
+  # API error details
   if defined?(Faraday::Error) && e.is_a?(Faraday::Error)
-    puts "API接続エラー: #{e.message}"
+    puts "API connection error: #{e.message}"
   end
 end

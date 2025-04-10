@@ -1,27 +1,27 @@
 require 'bundler/setup'
-require 'gemini'  # geminiライブラリを読み込む
+require 'gemini'  # load gemini library
 require 'logger'
-require 'readline' # コマンドライン編集機能のため
+require 'readline' # for command line editing features
 
-# ロガーの設定
+# Logger configuration
 logger = Logger.new(STDOUT)
 logger.level = Logger::WARN
 
-# APIキーを環境変数から取得、または直接指定
+# Get API key from environment variable or specify directly
 api_key = ENV['GEMINI_API_KEY'] || 'YOUR_API_KEY_HERE'
-character_name = "モルすけ"
+character_name = "Molsuke"
 
-# システム指示（プロンプト）
-system_instruction = "あなたはかわいいモルモットのモルすけです。語尾に「モル」をつけ、かわいらしく振る舞ってください。あなたの返答はわかりやすい内容で、300文字以内にしてください。"
+# System instruction (prompt)
+system_instruction = "You are a cute guinea pig named Molsuke. Please add 'mol' at the end of your sentences and act cute. Your responses should be easy to understand and within 300 characters."
 
-# 会話履歴
+# Conversation history
 conversation_history = []
 
-# 会話の進行を表示する関数
+# Function to display the conversation progress
 def print_conversation(messages, show_all = false, character_name)
-  puts "\n=== 会話履歴 ==="
+  puts "\n=== Conversation History ==="
   
-  # 表示するメッセージ
+  # Messages to display
   display_messages = show_all ? messages : [messages.last].compact
   
   display_messages.each do |message|
@@ -29,7 +29,7 @@ def print_conversation(messages, show_all = false, character_name)
     content = message[:content]
     
     if role == "user"
-      puts "[ユーザー]: " + content
+      puts "[User]: " + content
     else
       puts "[#{character_name}]: " + content
     end
@@ -38,59 +38,59 @@ def print_conversation(messages, show_all = false, character_name)
   puts "===============\n"
 end
 
-# コマンド補完用の設定
+# Command completion settings
 COMMANDS = ['exit', 'history', 'help', 'all'].freeze
 Readline.completion_proc = proc { |input|
   COMMANDS.grep(/^#{Regexp.escape(input)}/)
 }
 
-# チャンクからテキスト部分を安全に抽出する
+# Safely extract text from chunk
 def extract_text_from_chunk(chunk)
-  # チャンクがハッシュの場合（JSONとしてパースされた場合）
+  # If chunk is a hash (parsed as JSON)
   if chunk.is_a?(Hash) && chunk.dig("candidates", 0, "content", "parts", 0, "text")
     return chunk.dig("candidates", 0, "content", "parts", 0, "text")
-  # チャンクが文字列の場合
+  # If chunk is a string
   elsif chunk.is_a?(String)
     return chunk
-  # その他の場合は空文字列を返す
+  # Otherwise return empty string
   else
     return ""
   end
 end
 
-# メインの処理
+# Main process
 begin
-  # クライアントの初期化
-  logger.info "Geminiクライアントを初期化しています..."
+  # Initialize client
+  logger.info "Initializing Gemini client..."
   client = Gemini::Client.new(api_key)
   
-  puts "\n#{character_name}との会話を始めます。"
-  puts "コマンド:"
-  puts "  exit    - 会話を終了"
-  puts "  history - 会話履歴を表示"
-  puts "  all     - 全ての会話履歴"
-  puts "  help    - このヘルプを表示"
+  puts "\nStarting conversation with #{character_name}."
+  puts "Commands:"
+  puts "  exit    - End conversation"
+  puts "  history - Display conversation history"
+  puts "  all     - Display all conversation history"
+  puts "  help    - Display this help"
   
-  # 初期メッセージを生成（会話開始の挨拶）
-  initial_prompt = "こんにちは、自己紹介をしてください。"
-  logger.info "初期メッセージを送信しています..."
+  # Generate initial message (conversation greeting)
+  initial_prompt = "Hello, please introduce yourself."
+  logger.info "Sending initial message..."
   
-  # 初期応答を生成（ストリーミング形式）
+  # Generate initial response (streaming format)
   print "[#{character_name}]: "
   
-  # ストリーミングコールバックを使用
+  # Use streaming callback
   response_text = ""
   
   client.generate_content_stream(
     initial_prompt,
-    model: "gemini-2.0-flash", # モデル名を修正
+    model: "gemini-2.0-flash", # Specify model name
     system_instruction: system_instruction
   ) do |chunk|
-    # チャンクからテキストを安全に抽出
+    # Safely extract text from chunk
     chunk_text = extract_text_from_chunk(chunk)
     
     if chunk_text.to_s.strip.empty?
-      next  # 空のチャンクはスキップ
+      next  # Skip empty chunks
     else
       print chunk_text
       $stdout.flush
@@ -100,55 +100,55 @@ begin
   
   puts "\n"
   
-  # 会話履歴に追加
+  # Add to conversation history
   conversation_history << { role: "user", content: initial_prompt }
   conversation_history << { role: "model", content: response_text }
   
-  # 会話ループ
+  # Conversation loop
   while true
-    # Readlineを使用してユーザー入力を取得（履歴と編集機能付き）
+    # Get user input using Readline (with history and editing features)
     user_input = Readline.readline("> ", true)
     
-    # 入力がnilの場合（Ctrl+Dが押された場合）
+    # If input is nil (Ctrl+D was pressed)
     if user_input.nil?
-      puts "\n会話を終了します。"
+      puts "\nEnding conversation."
       break
     end
     
     user_input = user_input.strip
     
-    # 終了コマンド
+    # Exit command
     if user_input.downcase == 'exit'
-      puts "会話を終了します。"
+      puts "Ending conversation."
       break
     end
     
-    # ヘルプ表示
+    # Help display
     if user_input.downcase == 'help'
-      puts "\nコマンド:"
-      puts "  exit    - 会話を終了"
-      puts "  history - 会話履歴を表示"
-      puts "  all     - 全ての会話履歴"
-      puts "  help    - このヘルプを表示"
+      puts "\nCommands:"
+      puts "  exit    - End conversation"
+      puts "  history - Display conversation history"
+      puts "  all     - Display all conversation history"
+      puts "  help    - Display this help"
       next
     end
     
-    # 履歴表示コマンド
+    # History display command
     if user_input.downcase == 'history' || user_input.downcase == 'all'
       print_conversation(conversation_history, true, character_name)
       next
     end
     
-    # 空の入力はスキップ
+    # Skip empty input
     if user_input.empty?
       next
     end
     
-    # ユーザー入力を会話履歴に追加
+    # Add user input to conversation history
     conversation_history << { role: "user", content: user_input }
-    logger.info "メッセージを送信しています..."
+    logger.info "Sending message..."
     
-    # 会話履歴からcontentsを構築
+    # Build contents from conversation history
     contents = conversation_history.map do |msg|
       {
         role: msg[:role] == "user" ? "user" : "model",
@@ -156,26 +156,26 @@ begin
       }
     end
     
-    # 応答を生成（ストリーミング形式）
-    logger.info "Geminiからの応答を生成しています..."
+    # Generate response (streaming format)
+    logger.info "Generating response from Gemini..."
     print "[#{character_name}]: "
     
-    # ストリーミングコールバックを使用
+    # Use streaming callback
     response_text = ""
     response_received = false
     
-    # system_instructionを使用してストリーミング応答を生成
+    # Generate streaming response using system_instruction
     begin
       client.chat(parameters: {
-        model: "gemini-2.0-flash", # モデル名を修正
+        model: "gemini-2.0-flash", # Specify model name
         system_instruction: { parts: [{ text: system_instruction }] },
         contents: contents,
         stream: proc do |chunk, _raw_chunk|
-          # チャンクからテキストを安全に抽出
+          # Safely extract text from chunk
           chunk_text = extract_text_from_chunk(chunk)
           
           if chunk_text.to_s.strip.empty?
-            next  # 空のチャンクはスキップ
+            next  # Skip empty chunks
           else
             response_received = true
             print chunk_text
@@ -185,10 +185,10 @@ begin
         end
       })
     rescue => e
-      logger.error "ストリーミング中にエラーが発生しました: #{e.message}"
-      puts "\nストリーミング中にエラーが発生しました。通常のレスポンスを試みます。"
+      logger.error "Error occurred during streaming: #{e.message}"
+      puts "\nError occurred during streaming. Attempting normal response."
       
-      # 通常のレスポンスを試す
+      # Try normal response
       begin
         response = client.chat(parameters: {
           model: "gemini-2.0-flash",
@@ -203,25 +203,25 @@ begin
           response_received = true
         end
       rescue => e2
-        logger.error "通常のレスポンスでもエラーが発生しました: #{e2.message}"
+        logger.error "Error occurred with normal response as well: #{e2.message}"
       end
     end
     
     puts "\n"
     
-    # レスポンスを受信した場合、会話履歴に追加
+    # Add response to conversation history if received
     if response_received && !response_text.empty?
       conversation_history << { role: "model", content: response_text }
-      logger.info "応答が生成されました"
+      logger.info "Response generated"
     else
-      logger.error "応答の生成に失敗しました"
-      puts "[#{character_name}]: すみません、応答を生成できませんでした。"
+      logger.error "Failed to generate response"
+      puts "[#{character_name}]: Sorry, I couldn't generate a response."
     end
   end
   
-  logger.info "会話を終了します。"
+  logger.info "Ending conversation."
 
 rescue StandardError => e
-  logger.error "エラーが発生しました: #{e.message}"
+  logger.error "An error occurred: #{e.message}"
   logger.error e.backtrace.join("\n")
 end
