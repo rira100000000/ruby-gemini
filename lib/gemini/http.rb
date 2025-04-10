@@ -60,6 +60,24 @@ module Gemini
         req.params = { key: @api_key }
       end&.body)
     end
+    
+    # JSONレスポンスをパースするメソッド
+    # @param response [String] パースするJSONレスポンス
+    # @return [Hash, Array, String] パースされたJSONオブジェクトまたは元の文字列
+    def parse_json(response)
+      return unless response
+      return response unless response.is_a?(String)
+
+      original_response = response.dup
+      if response.include?("}\n{")
+        # 複数行のJSONオブジェクトらしきものをJSON配列に変換する
+        response = response.gsub("}\n{", "},{").prepend("[").concat("]")
+      end
+
+      JSON.parse(response)
+    rescue JSON::ParserError
+      original_response
+    end
 
     private
     
@@ -144,22 +162,7 @@ module Gemini
     def log_json_error(error, data)
       STDERR.puts "[Gemini::HTTP] JSON解析エラー: #{error.message}, データ: #{data[0..100]}..." if ENV["DEBUG"]
     end
-
-    def parse_json(response)
-      return unless response
-      return response unless response.is_a?(String)
-
-      original_response = response.dup
-      if response.include?("}\n{")
-        # 複数行のJSONオブジェクトらしきものをJSON配列に変換する
-        response = response.gsub("}\n{", "},{").prepend("[").concat("]")
-      end
-
-      JSON.parse(response)
-    rescue JSON::ParserError
-      original_response
-    end
-
+    
     # ストリーミングレスポンスを処理するためのプロシージャを生成
     def to_json_stream(user_proc:)
       proc do |chunk, _bytes, env|

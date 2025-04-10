@@ -41,8 +41,14 @@ module Gemini
       @runs ||= Gemini::Runs.new(client: self)
     end
 
+    # 音声処理へのアクセサ
     def audio
       @audio ||= Gemini::Audio.new(client: self)
+    end
+
+    # ファイル管理へのアクセサ（新しく追加）
+    def files
+      @files ||= Gemini::Files.new(client: self)
     end
 
     def reset_headers

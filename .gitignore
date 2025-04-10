@@ -8,5 +8,8 @@
 /spec/reports/
 /tmp/
 
+/node_modules/
+/package.json
+/package-lock.json
 .env
 .rspec_status

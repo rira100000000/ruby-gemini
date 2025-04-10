@@ -40,14 +40,22 @@ begin
   logger.info "音声ファイルをアップロードして文字起こしを実行しています..."
   puts "処理中..."
   
-  response = client.audio.transcribe(
-    parameters: {
-      model: "gemini-1.5-flash", # Geminiのモデルを指定
-      file: File.open(audio_file_path, "rb"),
-      language: "ja", # 言語を指定（必要に応じて変更してください）
-      content_text: "この音声を文字起こししてください。"
-    }
-  )
+  # ファイルを開く
+  file = File.open(audio_file_path, "rb")
+  
+  begin
+    response = client.audio.transcribe(
+      parameters: {
+        model: "gemini-1.5-flash", # Geminiのモデルを指定
+        file: file,
+        language: "ja", # 言語を指定（必要に応じて変更してください）
+        content_text: "この音声を文字起こししてください。"
+      }
+    )
+  ensure
+    # 必ずファイルを閉じる
+    file.close
+  end
   
   # 処理終了時間と経過時間の計算
   end_time = Time.now
@@ -65,12 +73,12 @@ begin
   
 rescue StandardError => e
   logger.error "エラーが発生しました: #{e.message}"
-  logger.error e.backtrace.join("\n")
+  logger.error e.backtrace.join("\n") if ENV["DEBUG"]
   
   puts "\n詳細エラー情報:"
   puts "#{e.class}: #{e.message}"
   
-  # APIエラーの詳細情報（エラー処理を修正）
+  # APIエラーの詳細情報
   if defined?(Faraday::Error) && e.is_a?(Faraday::Error)
     puts "API接続エラー: #{e.message}"
   end
