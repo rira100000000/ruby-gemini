@@ -14,7 +14,7 @@ require_relative "gemini/runs"
 require_relative "gemini/embeddings"
 require_relative "gemini/audio"
 require_relative "gemini/files"
-
+require_relative "gemini/response"
 module Gemini
   class Error < StandardError; end
   class ConfigurationError < Error; end
