@@ -174,7 +174,7 @@ module Gemini
       end
     end
     
-    # Convert input to Gemini API format with support for image inputs
+    # Convert input to Gemini API format with support for image inputs and file data
     def format_content(input)
       case input
       when String
@@ -182,34 +182,57 @@ module Gemini
       when Array
         # For arrays, convert each element to part form
         processed_parts = input.map do |part|
-          if part.is_a?(Hash) && part[:type]
-            case part[:type]
-            when "text"
+          if part.is_a?(Hash)
+            if part[:type]
+              case part[:type]
+              when "text"
+                { text: part[:text] }
+              when "image_url"
+                # Convert to Gemini API format
+                { 
+                  inline_data: {
+                    mime_type: determine_mime_type(part[:image_url][:url]),
+                    data: encode_image_from_url(part[:image_url][:url])
+                  }
+                }
+              when "image_file"
+                {
+                  inline_data: {
+                    mime_type: determine_mime_type(part[:image_file][:file_path]),
+                    data: encode_image_from_file(part[:image_file][:file_path])
+                  }
+                }
+              when "image_base64"
+                {
+                  inline_data: {
+                    mime_type: part[:image_base64][:mime_type],
+                    data: part[:image_base64][:data]
+                  }
+                }
+              when "file_data"
+                # Support for uploaded files via file_data
+                {
+                  file_data: part[:file_data]
+                }
+              else
+                # Other types return as is
+                part
+              end
+            elsif part[:file_data]
+              # Direct file_data reference without type (for compatibility)
+              {
+                file_data: part[:file_data]
+              }
+            elsif part[:inline_data]
+              # Direct inline_data reference without type
+              {
+                inline_data: part[:inline_data]
+              }
+            elsif part[:text]
+              # Direct text reference without type
               { text: part[:text] }
-            when "image_url"
-              # Convert to Gemini API format
-              { 
-                inline_data: {
-                  mime_type: determine_mime_type(part[:image_url][:url]),
-                  data: encode_image_from_url(part[:image_url][:url])
-                }
-              }
-            when "image_file"
-              {
-                inline_data: {
-                  mime_type: determine_mime_type(part[:image_file][:file_path]),
-                  data: encode_image_from_file(part[:image_file][:file_path])
-                }
-              }
-            when "image_base64"
-              {
-                inline_data: {
-                  mime_type: part[:image_base64][:mime_type],
-                  data: part[:image_base64][:data]
-                }
-              }
             else
-              # Other types return as is
+              # Return hash as is if no recognized keys
               part
             end
           elsif part.respond_to?(:to_s)
