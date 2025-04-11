@@ -4,11 +4,12 @@ RSpec.describe Gemini::Audio do
   let(:api_key) { 'test_api_key' }
   let(:client) { instance_double('Gemini::Client') }
   let(:audio) { Gemini::Audio.new(client: client) }
+  let(:response_instance) { instance_double('Gemini::Response') }
   
   describe '#transcribe' do
     let(:test_audio_file) { instance_double('File') }
     let(:file_path) { '/path/to/audio.mp3' }
-    let(:response_data) do
+    let(:api_response_data) do
       {
         "candidates" => [
           {
@@ -19,6 +20,13 @@ RSpec.describe Gemini::Audio do
             }
           }
         ]
+      }
+    end
+    
+    let(:formatted_response) do
+      {
+        "text" => "This is a test transcription result.",
+        "raw_response" => api_response_data
       }
     end
 
@@ -34,7 +42,12 @@ RSpec.describe Gemini::Audio do
       allow(Base64).to receive(:strict_encode64).with('Test audio data').and_return('encoded_audio_data')
       
       # Mock client's json_post method
-      allow(client).to receive(:json_post).and_return(response_data)
+      allow(client).to receive(:json_post).and_return(api_response_data)
+      
+      # Mock Response class
+      allow(Gemini::Response).to receive(:new).with(formatted_response).and_return(response_instance)
+      allow(response_instance).to receive(:text).and_return("This is a test transcription result.")
+      allow(response_instance).to receive(:raw_data).and_return(formatted_response)
     end
 
     context 'basic transcription' do
@@ -64,13 +77,11 @@ RSpec.describe Gemini::Audio do
         end
       end
 
-      it 'returns response in correct format' do
+      it 'returns Response object with transcription text' do
         result = audio.transcribe(parameters: { file: test_audio_file })
         
-        expect(result).to include(
-          "text" => "This is a test transcription result.",
-          "raw_response" => response_data
-        )
+        expect(result).to be(response_instance)
+        expect(result.text).to eq("This is a test transcription result.")
       end
     end
 
@@ -147,6 +158,28 @@ RSpec.describe Gemini::Audio do
       end
     end
 
+    context 'with file_uri instead of file' do
+      let(:file_uri) { "files/audio123" }
+
+      before do
+        allow(audio).to receive(:transcribe_with_file_uri).and_call_original
+      end
+      
+      it 'calls transcribe_with_file_uri and returns Response object' do
+        result = audio.transcribe(parameters: { file_uri: file_uri })
+        
+        expect(result).to be(response_instance)
+        expect(client).to have_received(:json_post) do |args|
+          expect(args[:path]).to eq("models/gemini-1.5-flash:generateContent")
+          
+          # Verify content structure
+          contents = args[:parameters][:contents]
+          expect(contents[0][:parts][1][:file_data][:file_uri]).to eq(file_uri)
+          expect(contents[0][:parts][1][:file_data][:mime_type]).to eq("audio/mp3")
+        end
+      end
+    end
+
     context 'with no file specified' do
       it 'raises ArgumentError' do
         expect {
@@ -168,7 +201,7 @@ RSpec.describe Gemini::Audio do
       }.each do |ext, mime_type|
         it "uses #{mime_type} for #{ext} files" do
           # Reset mocks for each test
-          allow(client).to receive(:json_post).and_return(response_data)
+          allow(client).to receive(:json_post).and_return(api_response_data)
           allow(File).to receive(:extname).with(file_path).and_return(ext)
           
           audio.transcribe(parameters: { file: test_audio_file })
@@ -182,19 +215,20 @@ RSpec.describe Gemini::Audio do
     end
 
     context 'when response has no candidates' do
-      let(:empty_response) { { "candidates" => [] } }
+      let(:empty_api_response) { { "candidates" => [] } }
+      let(:empty_formatted_response) { { "text" => "", "raw_response" => empty_api_response } }
       
       before do
-        allow(client).to receive(:json_post).and_return(empty_response)
+        allow(client).to receive(:json_post).and_return(empty_api_response)
+        allow(Gemini::Response).to receive(:new).with(empty_formatted_response).and_return(response_instance)
+        allow(response_instance).to receive(:text).and_return("")
       end
       
-      it 'returns response with empty text' do
+      it 'returns Response object with empty text' do
         result = audio.transcribe(parameters: { file: test_audio_file })
         
-        expect(result).to eq({
-          "text" => "",
-          "raw_response" => empty_response
-        })
+        expect(result).to be(response_instance)
+        expect(result.text).to eq("")
       end
     end
   end

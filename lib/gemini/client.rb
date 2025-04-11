@@ -70,11 +70,13 @@ module Gemini
         # Set up stream callback
         stream_params = parameters.dup
         stream_params[:stream] = proc { |chunk| process_stream_chunk(chunk, &stream_callback) }
-        return json_post(path: path, parameters: stream_params)
+        response = json_post(path: path, parameters: stream_params)
+        return Gemini::Response.new(response)
       else
         # Normal batch response mode
         path = "models/#{model}:generateContent"
-        return json_post(path: path, parameters: parameters)
+        response = json_post(path: path, parameters: parameters)
+        return Gemini::Response.new(response)
       end
     end
     
@@ -82,7 +84,8 @@ module Gemini
     def embeddings(parameters: {})
       model = parameters.delete(:model) || "text-embedding-model"
       path = "models/#{model}:embedContent"
-      json_post(path: path, parameters: parameters)
+      response = json_post(path: path, parameters: parameters)
+      Gemini::Response.new(response)
     end
     
     # Method corresponding to OpenAI's completions

@@ -1,7 +1,10 @@
+require 'spec_helper'
+
 RSpec.describe Gemini::Client do
   let(:api_key) { ENV['GEMINI_API_KEY'] || 'test_api_key' }
   let(:client) { Gemini::Client.new(api_key) }
   let(:base_url) { "https://generativelanguage.googleapis.com/v1beta" }
+  let(:response_instance) { instance_double(Gemini::Response) }
 
   describe "#initialize" do
     it "initializes with an API key" do
@@ -37,7 +40,13 @@ RSpec.describe Gemini::Client do
             "index" => 0
           }
         ]
-      }.to_json
+      }
+    end
+
+    before do
+      allow(Gemini::Response).to receive(:new).and_return(response_instance)
+      allow(response_instance).to receive(:text).and_return(sample_text_response)
+      allow(response_instance).to receive(:raw_data).and_return(response_body)
     end
 
     context "with image_url" do
@@ -71,12 +80,13 @@ RSpec.describe Gemini::Client do
             ),
             headers: { "Content-Type" => "application/json" }
           )
-          .to_return(status: 200, body: response_body, headers: { "Content-Type" => "application/json" })
+          .to_return(status: 200, body: response_body.to_json, headers: { "Content-Type" => "application/json" })
       end
 
-      it "sends a request with image url data" do
+      it "sends a request with image url data and returns Response object" do
         response = client.generate_content(prompt, model: "gemini-2.0-flash")
-        expect(response["candidates"][0]["content"]["parts"][0]["text"]).to eq(sample_text_response)
+        expect(response).to be(response_instance)
+        expect(response.text).to eq(sample_text_response)
       end
     end
 
@@ -111,12 +121,13 @@ RSpec.describe Gemini::Client do
             ),
             headers: { "Content-Type" => "application/json" }
           )
-          .to_return(status: 200, body: response_body, headers: { "Content-Type" => "application/json" })
+          .to_return(status: 200, body: response_body.to_json, headers: { "Content-Type" => "application/json" })
       end
 
-      it "sends a request with image file data" do
+      it "sends a request with image file data and returns Response object" do
         response = client.generate_content(prompt, model: "gemini-2.0-flash")
-        expect(response["candidates"][0]["content"]["parts"][0]["text"]).to eq(sample_text_response)
+        expect(response).to be(response_instance)
+        expect(response.text).to eq(sample_text_response)
       end
     end
 
@@ -147,12 +158,13 @@ RSpec.describe Gemini::Client do
             ),
             headers: { "Content-Type" => "application/json" }
           )
-          .to_return(status: 200, body: response_body, headers: { "Content-Type" => "application/json" })
+          .to_return(status: 200, body: response_body.to_json, headers: { "Content-Type" => "application/json" })
       end
 
-      it "sends a request with direct base64 image data" do
+      it "sends a request with direct base64 image data and returns Response object" do
         response = client.generate_content(prompt, model: "gemini-2.0-flash")
-        expect(response["candidates"][0]["content"]["parts"][0]["text"]).to eq(sample_text_response)
+        expect(response).to be(response_instance)
+        expect(response.text).to eq(sample_text_response)
       end
     end
 
@@ -197,13 +209,123 @@ RSpec.describe Gemini::Client do
             ),
             headers: { "Content-Type" => "application/json" }
           )
-          .to_return(status: 200, body: response_body, headers: { "Content-Type" => "application/json" })
+          .to_return(status: 200, body: response_body.to_json, headers: { "Content-Type" => "application/json" })
       end
 
-      it "sends a request with multiple image data" do
+      it "sends a request with multiple image data and returns Response object" do
         response = client.generate_content(prompt, model: "gemini-2.0-flash")
-        expect(response["candidates"][0]["content"]["parts"][0]["text"]).to eq(sample_text_response)
+        expect(response).to be(response_instance)
+        expect(response.text).to eq(sample_text_response)
       end
+    end
+  end
+  
+  describe "#chat" do
+    let(:model) { "gemini-2.0-flash-lite" }
+    let(:response_body) do
+      {
+        "candidates" => [
+          {
+            "content" => {
+              "parts" => [
+                { "text" => "Hello, how can I help you today?" }
+              ],
+              "role" => "model"
+            },
+            "finishReason" => "STOP",
+            "index" => 0
+          }
+        ]
+      }
+    end
+
+    before do
+      allow(Gemini::Response).to receive(:new).and_return(response_instance)
+      allow(response_instance).to receive(:text).and_return("Hello, how can I help you today?")
+      allow(response_instance).to receive(:raw_data).and_return(response_body)
+    end
+
+    context "with non-streaming response" do
+      it "sends a generateContent request and returns Response object" do
+        stub_request(:post, "#{base_url}/models/#{model}:generateContent?key=#{api_key}")
+          .to_return(status: 200, body: response_body.to_json, headers: { "Content-Type" => "application/json" })
+          
+        response = client.chat(parameters: { contents: [{ parts: [{ text: "Hi" }] }] })
+        expect(response).to be(response_instance)
+        expect(response.text).to eq("Hello, how can I help you today?")
+      end
+    end
+
+    context "with streaming response" do
+      it "sends a streamGenerateContent request and returns Response object" do
+        stub_request(:post, "#{base_url}/models/#{model}:streamGenerateContent?alt=sse&key=#{api_key}")
+          .to_return(status: 200, body: response_body.to_json, headers: { "Content-Type" => "application/json" })
+          
+        callback = proc { |chunk| }
+        response = client.chat(parameters: { contents: [{ parts: [{ text: "Hi" }] }] }, &callback)
+        expect(response).to be(response_instance)
+      end
+    end
+  end
+
+  describe "#embeddings" do
+    let(:model) { "text-embedding-model" }
+    let(:response_body) do
+      {
+        "embedding" => {
+          "values" => [0.1, 0.2, 0.3]
+        }
+      }
+    end
+
+    before do
+      allow(Gemini::Response).to receive(:new).and_return(response_instance)
+      allow(response_instance).to receive(:raw_data).and_return(response_body)
+    end
+
+    it "sends an embedContent request and returns Response object" do
+      stub_request(:post, "#{base_url}/models/#{model}:embedContent?key=#{api_key}")
+        .to_return(status: 200, body: response_body.to_json, headers: { "Content-Type" => "application/json" })
+        
+      response = client.embeddings(parameters: { content: { parts: [{ text: "Embed this text" }] } })
+      expect(response).to be(response_instance)
+    end
+  end
+
+  describe "#completions" do
+    it "delegates to chat method and returns Response object" do
+      params = { contents: [{ parts: [{ text: "Complete this" }] }] }
+      expect(client).to receive(:chat).with(parameters: params).and_return(response_instance)
+      
+      response = client.completions(parameters: params)
+      expect(response).to be(response_instance)
+    end
+  end
+
+  describe "#generate_content_stream" do
+    let(:model) { "gemini-2.0-flash-lite" }
+    
+    before do
+      allow(Gemini::Response).to receive(:new).and_return(response_instance)
+    end
+
+    it "requires a block" do
+      expect { client.generate_content_stream("Hello") }.to raise_error(ArgumentError, "Block is required for streaming")
+    end
+
+    it "sends a streaming request and returns Response object" do
+      prompt = "Tell me a story"
+      
+      expect(client).to receive(:chat) do |parameters:, &block|
+        expect(parameters[:contents][0][:parts][0][:text]).to eq(prompt)
+        expect(parameters[:model]).to eq(model)
+        expect(block).to be_a(Proc)
+        response_instance
+      end
+      
+      callback = proc { |chunk| }
+      response = client.generate_content_stream(prompt, &callback)
+      expect(response).to be(response_instance)
     end
   end
 
@@ -290,7 +412,7 @@ RSpec.describe Gemini::Client do
             "index" => 0
           }
         ]
-      }.to_json
+      }
     end
 
     before do
@@ -301,12 +423,16 @@ RSpec.describe Gemini::Client do
           }.to_json,
           headers: { "Content-Type" => "application/json" }
         )
-        .to_return(status: 200, body: response_body, headers: { "Content-Type" => "application/json" })
+        .to_return(status: 200, body: response_body.to_json, headers: { "Content-Type" => "application/json" })
+      
+      allow(Gemini::Response).to receive(:new).and_return(response_instance)
+      allow(response_instance).to receive(:text).and_return("Ruby is a dynamic, interpreted language...")
     end
 
-    it "sends a text-only request and returns response" do
+    it "sends a text-only request and returns Response object" do
       response = client.generate_content(prompt)
-      expect(response["candidates"][0]["content"]["parts"][0]["text"]).to include("Ruby is a dynamic")
+      expect(response).to be(response_instance)
+      expect(response.text).to include("Ruby is a dynamic")
     end
   end
 end

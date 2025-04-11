@@ -17,7 +17,8 @@ module Gemini
       end
 
       if file_uri
-        return transcribe_with_file_uri(file_uri, model, language, content_text, parameters)
+        response = transcribe_with_file_uri(file_uri, model, language, content_text, parameters)
+        return Gemini::Response.new(response)
       end
       
       # Get MIME type (simple detection)
@@ -60,7 +61,7 @@ module Gemini
       )
       
       # Format response
-      format_response(response)
+      Gemini::Response.new(format_response(response))
     end
     
     private
