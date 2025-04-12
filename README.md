@@ -14,6 +14,7 @@ This project is inspired by and pays homage to [ruby-openai](https://github.com/
 - Thread and message management for chat applications
 - Runs management for executing AI tasks
 - Convenient Response object for easy access to generated content
+- Structured output with JSON schema and enum constraints
 
 ## Installation
 
@@ -304,6 +305,110 @@ client.files.delete(name: file_name)
 
 For more examples, check out the `demo/file_audio_demo.rb` file included with the gem.
 
+### Structured Output with JSON Schema
+
+You can request responses in structured JSON format by specifying a JSON schema:
+
+```ruby
+require 'gemini'
+require 'json'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# Define a schema for recipes
+recipe_schema = {
+  type: "ARRAY",
+  items: {
+    type: "OBJECT",
+    properties: {
+      "recipe_name": { type: "STRING" },
+      "ingredients": {
+        type: "ARRAY",
+        items: { type: "STRING" }
+      },
+      "preparation_time": {
+        type: "INTEGER",
+        description: "Preparation time in minutes"
+      }
+    },
+    required: ["recipe_name", "ingredients"],
+    propertyOrdering: ["recipe_name", "ingredients", "preparation_time"]
+  }
+}
+
+# Request JSON-formatted response according to the schema
+response = client.generate_content(
+  "List three popular cookie recipes with ingredients and preparation time",
+  response_mime_type: "application/json",
+  response_schema: recipe_schema
+)
+
+# Process JSON response
+if response.success? && response.json?
+  recipes = response.json
+  
+  # Work with structured data
+  recipes.each do |recipe|
+    puts "#{recipe['recipe_name']} (#{recipe['preparation_time']} minutes)"
+    puts "Ingredients: #{recipe['ingredients'].join(', ')}"
+    puts
+  end
+else
+  puts "Failed to get JSON: #{response.error}"
+end
+```
+
+### Enum-Constrained Responses
+
+You can limit possible values in responses using enums:
+
+```ruby
+require 'gemini'
+require 'json'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# Define schema with enum constraints
+review_schema = {
+  type: "OBJECT",
+  properties: {
+    "product_name": { type: "STRING" },
+    "rating": {
+      type: "STRING",
+      enum: ["1", "2", "3", "4", "5"],
+      description: "Rating from 1 to 5"
+    },
+    "recommendation": {
+      type: "STRING",
+      enum: ["Not recommended", "Neutral", "Recommended", "Highly recommended"],
+      description: "Level of recommendation"
+    },
+    "comment": { type: "STRING" }
+  },
+  required: ["product_name", "rating", "recommendation"]
+}
+
+# Request constrained response
+response = client.generate_content(
+  "Write a review for the new GeminiPhone 15 smartphone",
+  response_mime_type: "application/json",
+  response_schema: review_schema
+)
+
+# Work with structured data that follows constraints
+if response.success? && response.json?
+  review = response.json
+  puts "Product: #{review['product_name']}"
+  puts "Rating: #{review['rating']}/5"
+  puts "Recommendation: #{review['recommendation']}"
+  puts "Comment: #{review['comment']}" if review['comment']
+else
+  puts "Failed to get JSON: #{response.error}"
+end
+```
+
+For complete examples of structured output, check out the `demo/structured_output_demo.rb` and `demo/enum_response_demo.rb` files included with the gem.
+
 ## Advanced Usage
 
 ### Threads and Messages
@@ -381,6 +486,13 @@ puts "Total tokens: #{response.total_tokens}"
 puts "Finish reason: #{response.finish_reason}"
 puts "Safety blocked? #{response.safety_blocked?}"
 
+# JSON handling methods (for structured output)
+puts "Is JSON response? #{response.json?}"
+if response.json?
+  puts "JSON data: #{response.json.inspect}"
+  puts "Pretty JSON: #{response.to_formatted_json(pretty: true)}"
+end
+
 # Raw data access for advanced needs
 puts "Raw response data available? #{!response.raw_data.nil?}"
 ```
@@ -425,6 +537,9 @@ The gem includes several demo applications that showcase its functionality:
 - `demo/image_generation_demo.rb` - Image generation 
 - `demo/file_vision_demo.rb` - Image recognition with large image files
 - `demo/file_audio_demo.rb` - Audio transcription with large audio files
+- `demo/structured_output_demo.rb` - Structured JSON output with schema
+- `demo/enum_response_demo.rb` - Enum-constrained responses
+
 Run the demos with:
 
 Adding _ja to the name of each demo file will launch the Japanese version of the demo.
@@ -451,6 +566,12 @@ ruby demo/file_vision_demo.rb path/to/image/file.jpg
 
 # Image generation
 ruby demo/image_generation_demo.rb
+
+# Structured output with JSON schema
+ruby demo/structured_output_demo.rb
+
+# Enum-constrained responses
+ruby demo/enum_response_demo.rb
 ```
 
 ## Models
