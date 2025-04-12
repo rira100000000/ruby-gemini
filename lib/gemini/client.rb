@@ -49,6 +49,11 @@ module Gemini
       @files ||= Gemini::Files.new(client: self)
     end
 
+    # 画像生成アクセサ
+    def images
+      @images ||= Gemini::Images.new(client: self)
+    end
+
     def reset_headers
       @extra_headers = {}
     end

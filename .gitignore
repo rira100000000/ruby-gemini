@@ -7,6 +7,8 @@
 /pkg/
 /spec/reports/
 /tmp/
+/generated_images/
+/api_responses/
 
 /node_modules/
 /package.json

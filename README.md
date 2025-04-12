@@ -194,6 +194,55 @@ client.files.delete(name: file_name)
 
 For more examples, check out the `demo/vision_demo.rb` and `demo/file_vision_demo.rb` files included with the gem.
 
+### Image Generation
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# Generate an image using Gemini 2.0
+response = client.images.generate(
+  parameters: {
+    prompt: "A beautiful sunset over the ocean with sailing boats",
+    model: "gemini-2.0-flash-exp-image-generation",
+    size: "16:9"
+  }
+)
+
+# Save the generated image
+if response.success? && !response.images.empty?
+  filepath = "generated_image.png"
+  response.save_image(filepath)
+  puts "Image saved to #{filepath}"
+else
+  puts "Image generation failed: #{response.error}"
+end
+```
+
+You can also use Imagen 3 model (Note: This feature is not fully tested yet):
+
+```ruby
+# Generate multiple images using Imagen 3
+response = client.images.generate(
+  parameters: {
+    prompt: "A futuristic city with flying cars and tall skyscrapers",
+    model: "imagen-3.0-generate-002",
+    size: "1:1",
+    n: 4  # Generate 4 images
+  }
+)
+
+# Save all generated images
+if response.success? && !response.images.empty?
+  filepaths = response.images.map.with_index { |_, i| "imagen_#{i+1}.png" }
+  saved_files = response.save_images(filepaths)
+  saved_files.each { |f| puts "Image saved to #{f}" if f }
+end
+```
+
+For a complete example, check out the `demo/image_generation_demo.rb` file included with the gem.
+
 ### Audio Transcription
 
 ```ruby
@@ -373,13 +422,13 @@ The gem includes several demo applications that showcase its functionality:
 - `demo/stream_demo.rb` - Streaming text generation
 - `demo/audio_demo.rb` - Audio transcription
 - `demo/vision_demo.rb` - Image recognition
+- `demo/image_generation_demo.rb` - Image generation 
 - `demo/file_vision_demo.rb` - Image recognition with large image files
 - `demo/file_audio_demo.rb` - Audio transcription with large audio files
-
 Run the demos with:
 
 Adding _ja to the name of each demo file will launch the Japanese version of the demo.
-例: `ruby demo_ja.rb`
+example: `ruby demo_ja.rb`
 
 ```bash
 # Basic chat demo
@@ -399,6 +448,9 @@ ruby demo/vision_demo.rb path/to/image/file.jpg
 
 # Image recognition with large image files
 ruby demo/file_vision_demo.rb path/to/image/file.jpg
+
+# Image generation
+ruby demo/image_generation_demo.rb
 ```
 
 ## Models
