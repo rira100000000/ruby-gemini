@@ -1,5 +1,5 @@
 require 'bundler/setup'
-require 'gemini'  # load gemini library
+require 'gemini'  # Load Gemini library
 require 'logger'
 
 # Logger configuration
@@ -14,11 +14,11 @@ begin
   logger.info "Initializing Gemini client..."
   client = Gemini::Client.new(api_key)
   
-  puts "Starting audio file transcription"
+  puts "Starting audio transcription"
   puts "==================================="
   
-  # Specify audio file path
-  audio_file_path = ARGV[0] || raise("Usage: ruby audio_demo.rb <audio file path>")
+  # Specify the path to the audio file
+  audio_file_path = ARGV[0] || raise("Usage: ruby audio_demo.rb <path to audio file>")
   
   # Check if file exists
   unless File.exist?(audio_file_path)
@@ -26,21 +26,21 @@ begin
   end
   
   # Display file information
-  file_size = File.size(audio_file_path) / 1024.0 # KB unit
+  file_size = File.size(audio_file_path) / 1024.0 # Size in KB
   file_extension = File.extname(audio_file_path)
   puts "File: #{File.basename(audio_file_path)}"
   puts "Size: #{file_size.round(2)} KB"
   puts "Type: #{file_extension}"
   puts "==================================="
   
-  # Process start time
+  # Start time
   start_time = Time.now
   
   # Execute transcription
   logger.info "Uploading audio file and executing transcription..."
   puts "Processing..."
   
-  # Open file
+  # Open the file
   file = File.open(audio_file_path, "rb")
   
   begin
@@ -48,7 +48,7 @@ begin
       parameters: {
         model: "gemini-1.5-flash", # Specify Gemini model
         file: file,
-        language: "ja", # Specify language (change as needed)
+        language: "en", # Specify language (change as needed)
         content_text: "Please transcribe this audio."
       }
     )
@@ -57,19 +57,31 @@ begin
     file.close
   end
   
-  # Process end time and elapsed time calculation
+  # End time and elapsed time calculation
   end_time = Time.now
   elapsed_time = end_time - start_time
   
-  # Display results
+  # Display results using Response class
   puts "\n=== Transcription Result ==="
-  puts response["text"]
+  
+  if response.success?
+    puts response.text
+    
+    # Display metadata if available
+    if response.usage && !response.usage.empty?
+      puts "\n--- Metadata ---"
+      puts "Token usage:"
+      puts "  Prompt: #{response.prompt_tokens}"
+      puts "  Generation: #{response.completion_tokens}"
+      puts "  Total: #{response.total_tokens}"
+    end
+  else
+    pp response.raw_data
+    puts "Transcription failed: #{response.error || 'Unknown error'}"
+  end
+  
   puts "======================="
   puts "Processing time: #{elapsed_time.round(2)} seconds"
-  
-  # If you want to check the raw response
-  # puts "\n=== Raw Response ==="
-  # puts JSON.pretty_generate(response["raw_response"])
   
 rescue StandardError => e
   logger.error "An error occurred: #{e.message}"

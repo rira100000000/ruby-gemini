@@ -17,8 +17,7 @@ module Gemini
       end
 
       if file_uri
-        response = transcribe_with_file_uri(file_uri, model, language, content_text, parameters)
-        return Gemini::Response.new(response)
+        return transcribe_with_file_uri(file_uri, model, language, content_text, parameters)
       end
       
       # Get MIME type (simple detection)
@@ -60,8 +59,7 @@ module Gemini
         parameters: request_params
       )
       
-      # Format response
-      Gemini::Response.new(format_response(response))
+      Gemini::Response.new(response)
     end
     
     private
@@ -99,8 +97,7 @@ module Gemini
         parameters: request_params
       )
       
-      # Format response
-      format_response(response)
+      Gemini::Response.new(response)
     end
     
     # Simple MIME type determination from file extension
@@ -125,26 +122,6 @@ module Gemini
         # Default value (assume mp3)
         "audio/mp3"
       end
-    end
-    
-    # Format Gemini API response to OpenAI format
-    def format_response(response)
-      # Extract text portion from response
-      if response["candidates"] && !response["candidates"].empty?
-        candidate = response["candidates"][0]
-        if candidate["content"] && candidate["content"]["parts"] && !candidate["content"]["parts"].empty?
-          text = candidate["content"]["parts"][0]["text"]
-          
-          # OpenAI-like response
-          return {
-            "text" => text,
-            "raw_response" => response # Include original response
-          }
-        end
-      end
-      
-      # Return empty response if text not found
-      { "text" => "", "raw_response" => response }
-    end
+    end    
   end
 end

@@ -17,11 +17,11 @@ begin
   logger.info "Geminiクライアントを初期化しています..."
   client = Gemini::Client.new(api_key)
   
-  puts "File APIを使用した音声ファイルの文字起こしデモ（デバッグモード）"
+  puts "File APIを使用した音声ファイルの文字起こしデモ（Response対応版）"
   puts "==============================================="
   
   # 音声ファイルのパスを指定
-  audio_file_path = ARGV[0] || raise("使用方法: ruby file_api_debug.rb <音声ファイルのパス>")
+  audio_file_path = ARGV[0] || raise("使用方法: ruby file_audio_demo_ja.rb <音声ファイルのパス>")
   
   # ファイルの存在確認
   unless File.exist?(audio_file_path)
@@ -60,7 +60,6 @@ begin
     puts "ファイルをアップロードしました："
     puts "File URI: #{file_uri}"
     puts "File Name: #{file_name}"
-    puts "完全なレスポンス: #{upload_result.inspect}"
     
     # 文字起こし実行
     logger.info "アップロードしたファイルの文字起こしを実行しています..."
@@ -72,6 +71,7 @@ begin
     retry_delay = 2 # 開始遅延（秒）
     
     begin
+      # 修正した audio.rb を使う
       response = client.audio.transcribe(
         parameters: {
           file_uri: file_uri,
@@ -79,6 +79,13 @@ begin
           content_text: "この音声を文字起こししてください。"
         }
       )
+      
+      # Responseオブジェクトをデバッグログに出力
+      if ENV["DEBUG"] == "true"
+        logger.debug "レスポンスタイプ: #{response.class}"
+        logger.debug "raw_dataタイプ: #{response.raw_data.class}" if response.respond_to?(:raw_data)
+      end
+      
     rescue Faraday::ServerError => e
       retry_count += 1
       if retry_count <= max_retries
@@ -96,11 +103,36 @@ begin
     end_time = Time.now
     elapsed_time = end_time - start_time
     
-    # 結果表示
+    # 結果表示 - Responseオブジェクトのメソッドを使用
     puts "\n=== 文字起こし結果 ==="
-    puts response["text"]
+    
+    # レスポンスが Gemini::Response かつ valid? メソッドを持つことを確認
+    if response.is_a?(Gemini::Response) && response.respond_to?(:valid?)
+      if response.valid?
+        puts response.text
+      else
+        puts "レスポンスの取得に失敗しました: #{response.error || '不明なエラー'}"
+      end
+    elsif response.respond_to?(:dig) && response.dig("candidates", 0, "content", "parts", 0, "text")
+      # ハッシュの場合はそのまま表示（fallback）
+      puts response.dig("candidates", 0, "content", "parts", 0, "text")
+    else
+      # それ以外の場合は直接文字列に変換
+      puts response.to_s
+    end
+    
     puts "======================="
     puts "処理時間: #{elapsed_time.round(2)} 秒"
+    
+    # 詳細情報（デバッグ用）
+    if ENV["DEBUG"] == "true" && response.is_a?(Gemini::Response) && response.respond_to?(:valid?) && response.valid?
+      puts "\n=== レスポンス詳細情報 ==="
+      puts "成功: #{response.success?}"
+      puts "終了理由: #{response.finish_reason}" if response.finish_reason
+      puts "テキスト部分の数: #{response.text_parts.size}"
+      puts "トークン使用量: #{response.total_tokens}" if response.total_tokens > 0
+      puts "======================="
+    end
     
     # アップロードしたファイルの情報表示
     begin
@@ -119,7 +151,7 @@ begin
       puts "ファイル情報の取得に失敗しました: #{e.message}"
     end
     
-      puts "ファイルは48時間後に自動的に削除されます"
+    puts "ファイルは48時間後に自動的に削除されます"
   rescue => e
     puts "ファイルアップロード中にエラーが発生しました: #{e.class} - #{e.message}"
     puts e.backtrace.join("\n") if ENV["DEBUG"]

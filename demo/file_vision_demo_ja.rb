@@ -17,7 +17,7 @@ begin
   logger.info "Geminiクライアントを初期化しています..."
   client = Gemini::Client.new(api_key)
   
-  puts "File APIを使用した画像認識デモ（改良版）"
+  puts "File APIを使用した画像認識デモ（Response対応版）"
   puts "==============================================="
   
   # 画像ファイルのパスを指定
@@ -85,15 +85,20 @@ begin
     retry_delay = 2 # 開始遅延（秒）
     
     begin
-      # 改良されたformat_contentを使用
-      # file_dataパラメータを直接使用
+      # Responseクラスに対応した実装
       response = client.generate_content(
         [
-          { text: "この画像に写っているものを詳しく説明してください。画像はピクセルアートの可能性があります。ゲームキャラクターや動物などが描かれているかもしれません。色、背景、特徴的な要素を全て含めて詳しく解説してください。" },
+          { text: "この画像に写っているものを日本語で詳しく説明してください。" },
           { file_data: { mime_type: mime_type, file_uri: file_uri } }
         ],
-        model: "gemini-1.5-pro"
+        model: "gemini-2.0-flash"
       )
+      
+      # Responseオブジェクトが返されるのを確認
+      unless response.is_a?(Gemini::Response)
+        logger.warn "レスポンスがGemini::Responseインスタンスではありません: #{response.class}"
+      end
+      
     rescue Faraday::ServerError => e
       retry_count += 1
       if retry_count <= max_retries
@@ -111,15 +116,24 @@ begin
     end_time = Time.now
     elapsed_time = end_time - start_time
     
-    # 結果表示
+    # 結果表示 - Responseオブジェクトのメソッドを使用
     puts "\n=== 画像認識結果 ==="
-    if response && response["candidates"] && !response["candidates"].empty?
-      puts response.dig("candidates", 0, "content", "parts", 0, "text")
+    if response.valid?
+      puts response.text
     else
-      puts "レスポンスの形式が予期しないものでした: #{response.inspect}"
+      puts "レスポンスの取得に失敗しました: #{response.error || '不明なエラー'}"
     end
     puts "======================="
     puts "処理時間: #{elapsed_time.round(2)} 秒"
+    
+    # 詳細情報（デバッグ用）
+    if ENV["DEBUG"] == "true" && response.valid?
+      puts "\n=== レスポンス詳細情報 ==="
+      puts "成功: #{response.success?}"
+      puts "終了理由: #{response.finish_reason}"
+      puts "テキスト部分の数: #{response.text_parts.size}"
+      puts "======================="
+    end
     
     # アップロードしたファイルの情報表示
     begin

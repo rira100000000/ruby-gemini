@@ -1,5 +1,5 @@
 require 'bundler/setup'
-require 'gemini'  # geminiライブラリを読み込む
+require 'gemini'  # Geminiライブラリを読み込む
 require 'logger'
 require 'readline' # コマンドライン編集機能のため
 
@@ -81,9 +81,10 @@ begin
   # ストリーミングコールバックを使用
   response_text = ""
   
-  client.generate_content_stream(
+  # Responseクラスの戻り値としてストリーミングレスポンスを取得
+  response = client.generate_content_stream(
     initial_prompt,
-    model: "gemini-2.0-flash", # モデル名を修正
+    model: "gemini-2.0-flash", # モデル名
     system_instruction: system_instruction
   ) do |chunk|
     # チャンクからテキストを安全に抽出
@@ -166,8 +167,9 @@ begin
     
     # system_instructionを使用してストリーミング応答を生成
     begin
-      client.chat(parameters: {
-        model: "gemini-2.0-flash", # モデル名を修正
+      # Responseクラスを介してストリーミング
+      response = client.chat(parameters: {
+        model: "gemini-2.0-flash", # モデル名
         system_instruction: { parts: [{ text: system_instruction }] },
         contents: contents,
         stream: proc do |chunk, _raw_chunk|
@@ -188,7 +190,7 @@ begin
       logger.error "ストリーミング中にエラーが発生しました: #{e.message}"
       puts "\nストリーミング中にエラーが発生しました。通常のレスポンスを試みます。"
       
-      # 通常のレスポンスを試す
+      # 通常のレスポンスを試す（Responseクラスを使用）
       begin
         response = client.chat(parameters: {
           model: "gemini-2.0-flash",
@@ -196,8 +198,8 @@ begin
           contents: contents
         })
         
-        if response["candidates"] && !response["candidates"].empty?
-          model_text = response["candidates"][0]["content"]["parts"][0]["text"]
+        if response.success?
+          model_text = response.text
           puts model_text
           response_text = model_text
           response_received = true

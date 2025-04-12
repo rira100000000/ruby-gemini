@@ -1,5 +1,5 @@
 require 'bundler/setup'
-require 'gemini'  # geminiライブラリを読み込む
+require 'gemini'  # Geminiライブラリを読み込む
 require 'logger'
 
 # ロガーの設定
@@ -61,15 +61,27 @@ begin
   end_time = Time.now
   elapsed_time = end_time - start_time
   
-  # 結果表示
+  # Responseクラスを使用した結果表示
   puts "\n=== 文字起こし結果 ==="
-  puts response["text"]
+  
+  if response.success?
+    puts response.text
+    
+    # メタデータが利用可能な場合は表示
+    if response.usage && !response.usage.empty?
+      puts "\n--- メタデータ ---"
+      puts "トークン使用量:"
+      puts "  プロンプト: #{response.prompt_tokens}"
+      puts "  生成: #{response.completion_tokens}"
+      puts "  合計: #{response.total_tokens}"
+    end
+  else
+    pp response.raw_data
+    puts "文字起こしに失敗しました: #{response.error || '不明なエラー'}"
+  end
+  
   puts "======================="
   puts "処理時間: #{elapsed_time.round(2)} 秒"
-  
-  # 生のレスポンスも確認したい場合
-  # puts "\n=== 生のレスポンス ==="
-  # puts JSON.pretty_generate(response["raw_response"])
   
 rescue StandardError => e
   logger.error "エラーが発生しました: #{e.message}"

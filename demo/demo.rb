@@ -1,23 +1,23 @@
 require 'bundler/setup'
-require 'gemini'  # load gemini library
+require 'gemini'  # Load Gemini library
 require 'logger'
-require 'readline' # for command line editing features
+require 'readline' # For command line editing features
 
 # Logger configuration
 logger = Logger.new(STDOUT)
 logger.level = Logger::WARN
 
-# Get API key from environment variable or specify directly
+# Get API key from environment variable or directly specify
 api_key = ENV['GEMINI_API_KEY'] || 'YOUR_API_KEY_HERE'
-character_name = "Molsuke"
+character_name = "Molly"
 
 # System instruction (prompt)
-system_instruction = "You are a cute guinea pig named Molsuke. Please add 'mol' at the end of your sentences and act cute. Your responses should be easy to understand and within 300 characters."
+system_instruction = "You are a cute guinea pig named Molly. Please respond in a cute manner. Your responses should be clear and under 300 characters."
 
 # Conversation history
 conversation_history = []
 
-# Function to display the conversation progress
+# Function to display conversation progress
 def print_conversation(messages, show_all = false, skip_system = true, character_name)
   puts "\n=== Conversation History ==="
   
@@ -38,7 +38,7 @@ def print_conversation(messages, show_all = false, skip_system = true, character
   puts "===============\n"
 end
 
-# Command completion settings
+# Settings for command completion
 COMMANDS = ['exit', 'history', 'help', 'all'].freeze
 Readline.completion_proc = proc { |input|
   COMMANDS.grep(/^#{Regexp.escape(input)}/)
@@ -53,24 +53,24 @@ begin
   puts "\nStarting conversation with #{character_name}."
   puts "Commands:"
   puts "  exit    - End conversation"
-  puts "  history - Display conversation history"
-  puts "  all     - Display all conversation history"
-  puts "  help    - Display this help"
+  puts "  history - Show conversation history"
+  puts "  all     - Show all conversation history"
+  puts "  help    - Show this help"
   
-  # Generate initial message (conversation greeting)
+  # Generate initial message (greeting)
   initial_prompt = "Hello, please introduce yourself."
   logger.info "Sending initial message..."
   
-  # Generate response using system_instruction
+  # Generate response using system instruction
   response = client.generate_content(
     initial_prompt,
-    model: "gemini-2.0-flash", # Specify model name
+    model: "gemini-2.0-flash-lite", # Model name
     system_instruction: system_instruction
   )
   
-  # Extract text from response
-  if response["candidates"] && !response["candidates"].empty?
-    model_text = response["candidates"][0]["content"]["parts"][0]["text"]
+  # Process results using Response class
+  if response.success?
+    model_text = response.text
     
     # Add to conversation history
     conversation_history << { role: "user", content: initial_prompt }
@@ -79,7 +79,7 @@ begin
     # Display response
     puts "[#{character_name}]: #{model_text}"
   else
-    logger.error "Failed to generate response: #{response.inspect}"
+    logger.error "Failed to generate response: #{response.error || 'No error details'}"
   end
   
   # Conversation loop
@@ -105,9 +105,9 @@ begin
     if user_input.downcase == 'help'
       puts "\nCommands:"
       puts "  exit    - End conversation"
-      puts "  history - Display conversation history"
-      puts "  all     - Display all conversation history"
-      puts "  help    - Display this help"
+      puts "  history - Show conversation history"
+      puts "  all     - Show all conversation history"
+      puts "  help    - Show this help"
       next
     end
     
@@ -134,18 +134,18 @@ begin
       }
     end
     
-    # Generate response using system_instruction
+    # Generate response using system instruction
     response = client.chat(parameters: {
-      model: "gemini-2.0-flash", # Specify model name
+      model: "gemini-2.0-flash", # Model name
       system_instruction: { parts: [{ text: system_instruction }] },
       contents: contents
     })
     
     logger.info "Generating response from Gemini..."
     
-    # Extract text from response
-    if response["candidates"] && !response["candidates"].empty?
-      model_text = response["candidates"][0]["content"]["parts"][0]["text"]
+    # Process response using Response class
+    if response.success?
+      model_text = response.text
       
       # Add to conversation history
       conversation_history << { role: "model", content: model_text }
@@ -153,7 +153,7 @@ begin
       # Display response
       puts "[#{character_name}]: #{model_text}"
     else
-      logger.error "Failed to generate response: #{response.inspect}"
+      logger.error "Failed to generate response: #{response.error || 'No error details'}"
       puts "[#{character_name}]: Sorry, I couldn't generate a response."
     end
   end

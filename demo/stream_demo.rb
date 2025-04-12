@@ -1,23 +1,23 @@
 require 'bundler/setup'
-require 'gemini'  # load gemini library
+require 'gemini'  # Load Gemini library
 require 'logger'
-require 'readline' # for command line editing features
+require 'readline' # For command line editing features
 
 # Logger configuration
 logger = Logger.new(STDOUT)
 logger.level = Logger::WARN
 
-# Get API key from environment variable or specify directly
+# Get API key from environment variable or directly specify
 api_key = ENV['GEMINI_API_KEY'] || 'YOUR_API_KEY_HERE'
-character_name = "Molsuke"
+character_name = "Molly"
 
 # System instruction (prompt)
-system_instruction = "You are a cute guinea pig named Molsuke. Please add 'mol' at the end of your sentences and act cute. Your responses should be easy to understand and within 300 characters."
+system_instruction = "You are a cute guinea pig named Molly. Please respond in a cute manner. Your responses should be clear and under 300 characters."
 
 # Conversation history
 conversation_history = []
 
-# Function to display the conversation progress
+# Function to display conversation progress
 def print_conversation(messages, show_all = false, character_name)
   puts "\n=== Conversation History ==="
   
@@ -38,7 +38,7 @@ def print_conversation(messages, show_all = false, character_name)
   puts "===============\n"
 end
 
-# Command completion settings
+# Settings for command completion
 COMMANDS = ['exit', 'history', 'help', 'all'].freeze
 Readline.completion_proc = proc { |input|
   COMMANDS.grep(/^#{Regexp.escape(input)}/)
@@ -52,7 +52,7 @@ def extract_text_from_chunk(chunk)
   # If chunk is a string
   elsif chunk.is_a?(String)
     return chunk
-  # Otherwise return empty string
+  # Return empty string in other cases
   else
     return ""
   end
@@ -67,23 +67,24 @@ begin
   puts "\nStarting conversation with #{character_name}."
   puts "Commands:"
   puts "  exit    - End conversation"
-  puts "  history - Display conversation history"
-  puts "  all     - Display all conversation history"
-  puts "  help    - Display this help"
+  puts "  history - Show conversation history"
+  puts "  all     - Show all conversation history"
+  puts "  help    - Show this help"
   
-  # Generate initial message (conversation greeting)
+  # Generate initial message (greeting)
   initial_prompt = "Hello, please introduce yourself."
   logger.info "Sending initial message..."
   
   # Generate initial response (streaming format)
   print "[#{character_name}]: "
   
-  # Use streaming callback
+  # Using streaming callback
   response_text = ""
   
-  client.generate_content_stream(
+  # Get streaming response as Response class return value
+  response = client.generate_content_stream(
     initial_prompt,
-    model: "gemini-2.0-flash", # Specify model name
+    model: "gemini-2.0-flash", # Model name
     system_instruction: system_instruction
   ) do |chunk|
     # Safely extract text from chunk
@@ -127,9 +128,9 @@ begin
     if user_input.downcase == 'help'
       puts "\nCommands:"
       puts "  exit    - End conversation"
-      puts "  history - Display conversation history"
-      puts "  all     - Display all conversation history"
-      puts "  help    - Display this help"
+      puts "  history - Show conversation history"
+      puts "  all     - Show all conversation history"
+      puts "  help    - Show this help"
       next
     end
     
@@ -160,14 +161,15 @@ begin
     logger.info "Generating response from Gemini..."
     print "[#{character_name}]: "
     
-    # Use streaming callback
+    # Using streaming callback
     response_text = ""
     response_received = false
     
-    # Generate streaming response using system_instruction
+    # Generate streaming response with system_instruction
     begin
-      client.chat(parameters: {
-        model: "gemini-2.0-flash", # Specify model name
+      # Streaming through Response class
+      response = client.chat(parameters: {
+        model: "gemini-2.0-flash", # Model name
         system_instruction: { parts: [{ text: system_instruction }] },
         contents: contents,
         stream: proc do |chunk, _raw_chunk|
@@ -186,9 +188,9 @@ begin
       })
     rescue => e
       logger.error "Error occurred during streaming: #{e.message}"
-      puts "\nError occurred during streaming. Attempting normal response."
+      puts "\nError occurred during streaming. Trying standard response."
       
-      # Try normal response
+      # Try standard response (using Response class)
       begin
         response = client.chat(parameters: {
           model: "gemini-2.0-flash",
@@ -196,20 +198,20 @@ begin
           contents: contents
         })
         
-        if response["candidates"] && !response["candidates"].empty?
-          model_text = response["candidates"][0]["content"]["parts"][0]["text"]
+        if response.success?
+          model_text = response.text
           puts model_text
           response_text = model_text
           response_received = true
         end
       rescue => e2
-        logger.error "Error occurred with normal response as well: #{e2.message}"
+        logger.error "Error occurred with standard response as well: #{e2.message}"
       end
     end
     
     puts "\n"
     
-    # Add response to conversation history if received
+    # If response received, add to conversation history
     if response_received && !response_text.empty?
       conversation_history << { role: "model", content: response_text }
       logger.info "Response generated"

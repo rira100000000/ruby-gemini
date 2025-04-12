@@ -1,5 +1,5 @@
 require 'bundler/setup'
-require 'gemini'  # geminiライブラリを読み込む
+require 'gemini'  # Geminiライブラリを読み込む
 require 'logger'
 require 'readline' # コマンドライン編集機能のため
 
@@ -61,16 +61,16 @@ begin
   initial_prompt = "こんにちは、自己紹介をしてください。"
   logger.info "初期メッセージを送信しています..."
   
-  # system_instructionを使用して応答を生成
+  # システム指示を使用して応答を生成
   response = client.generate_content(
     initial_prompt,
-    model: "gemini-2.0-flash", # モデル名を修正
+    model: "gemini-2.0-flash-lite", # モデル名s
     system_instruction: system_instruction
   )
   
-  # レスポンスからテキストを抽出
-  if response["candidates"] && !response["candidates"].empty?
-    model_text = response["candidates"][0]["content"]["parts"][0]["text"]
+  # Responseクラスを使用して結果を処理
+  if response.success?
+    model_text = response.text
     
     # 会話履歴に追加
     conversation_history << { role: "user", content: initial_prompt }
@@ -79,7 +79,7 @@ begin
     # 応答を表示
     puts "[#{character_name}]: #{model_text}"
   else
-    logger.error "応答の生成に失敗しました: #{response.inspect}"
+    logger.error "応答の生成に失敗しました: #{response.error || 'エラー詳細なし'}"
   end
   
   # 会話ループ
@@ -134,18 +134,18 @@ begin
       }
     end
     
-    # system_instructionを使用して応答を生成
+    # システム指示を使用して応答を生成
     response = client.chat(parameters: {
-      model: "gemini-2.0-flash", # モデル名を修正
+      model: "gemini-2.0-flash", # モデル名
       system_instruction: { parts: [{ text: system_instruction }] },
       contents: contents
     })
     
     logger.info "Geminiからの応答を生成しています..."
     
-    # レスポンスからテキストを抽出
-    if response["candidates"] && !response["candidates"].empty?
-      model_text = response["candidates"][0]["content"]["parts"][0]["text"]
+    # Responseクラスを使用して応答を処理
+    if response.success?
+      model_text = response.text
       
       # 会話履歴に追加
       conversation_history << { role: "model", content: model_text }
@@ -153,7 +153,7 @@ begin
       # 応答を表示
       puts "[#{character_name}]: #{model_text}"
     else
-      logger.error "応答の生成に失敗しました: #{response.inspect}"
+      logger.error "応答の生成に失敗しました: #{response.error || 'エラー詳細なし'}"
       puts "[#{character_name}]: すみません、応答を生成できませんでした。"
     end
   end

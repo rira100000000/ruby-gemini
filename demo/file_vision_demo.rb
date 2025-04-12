@@ -17,11 +17,11 @@ begin
   logger.info "Initializing Gemini client..."
   client = Gemini::Client.new(api_key)
   
-  puts "Image Recognition Demo Using File API (Improved Version)"
+  puts "Image Recognition Demo using File API (with Response support)"
   puts "==============================================="
   
-  # Specify image file path
-  image_file_path = ARGV[0] || raise("Usage: ruby file_vision_demo_english.rb <image_file_path>")
+  # Specify the path to the image file
+  image_file_path = ARGV[0] || raise("Usage: ruby file_vision_demo_en.rb <path to image file>")
   
   # Check if file exists
   unless File.exist?(image_file_path)
@@ -50,10 +50,10 @@ begin
                 "image/jpeg" # Default
               end
   
-  # Start processing time
+  # Start time
   start_time = Time.now
   
-  # Upload file
+  # Upload the file
   logger.info "Uploading image file..."
   puts "Uploading..."
   
@@ -67,33 +67,38 @@ begin
     puts "Starting file upload process..."
     upload_result = client.files.upload(file: file)
     
-    # Process successful upload
+    # Processing when successful
     file_uri = upload_result["file"]["uri"]
     file_name = upload_result["file"]["name"]
     
-    puts "File uploaded successfully:"
+    puts "File uploaded:"
     puts "File URI: #{file_uri}"
     puts "File Name: #{file_name}"
     
-    # Run image analysis
-    logger.info "Analyzing the uploaded image..."
-    puts "Image analysis in progress..."
+    # Execute image analysis
+    logger.info "Executing analysis of uploaded image..."
+    puts "Analyzing image..."
     
-    # Add retry logic (to handle 503 errors)
+    # Add retry logic (to counter 503 errors)
     max_retries = 3
     retry_count = 0
     retry_delay = 2 # Initial delay (seconds)
     
     begin
-      # Using improved format_content
-      # Directly use file_data parameter
+      # Implementation corresponding to Response class
       response = client.generate_content(
         [
-          { text: "Please describe in detail what's in this image. The image might be pixel art. It could depict game characters or animals. Please include all details about colors, background, and distinctive elements." },
+          { text: "Please describe in detail what you see in this image." },
           { file_data: { mime_type: mime_type, file_uri: file_uri } }
         ],
-        model: "gemini-1.5-pro"
+        model: "gemini-2.0-flash"
       )
+      
+      # Confirm Response object is returned
+      unless response.is_a?(Gemini::Response)
+        logger.warn "Response is not a Gemini::Response instance: #{response.class}"
+      end
+      
     rescue Faraday::ServerError => e
       retry_count += 1
       if retry_count <= max_retries
@@ -107,19 +112,28 @@ begin
       end
     end
     
-    # Calculate end time and elapsed time
+    # End time and elapsed time calculation
     end_time = Time.now
     elapsed_time = end_time - start_time
     
-    # Display results
-    puts "\n=== Image Analysis Results ==="
-    if response && response["candidates"] && !response["candidates"].empty?
-      puts response.dig("candidates", 0, "content", "parts", 0, "text")
+    # Display results - using Response object methods
+    puts "\n=== Image Analysis Result ==="
+    if response.valid?
+      puts response.text
     else
-      puts "Unexpected response format: #{response.inspect}"
+      puts "Failed to get response: #{response.error || 'Unknown error'}"
     end
     puts "======================="
     puts "Processing time: #{elapsed_time.round(2)} seconds"
+    
+    # Detailed information (for debugging)
+    if ENV["DEBUG"] == "true" && response.valid?
+      puts "\n=== Response Details ==="
+      puts "Success: #{response.success?}"
+      puts "Finish reason: #{response.finish_reason}"
+      puts "Number of text parts: #{response.text_parts.size}"
+      puts "======================="
+    end
     
     # Display uploaded file information
     begin
@@ -129,8 +143,8 @@ begin
       puts "Display Name: #{file_info['displayName']}" if file_info['displayName']
       puts "MIME Type: #{file_info['mimeType']}" if file_info['mimeType']
       puts "Size: #{file_info['sizeBytes'].to_i / 1024.0} KB" if file_info['sizeBytes']
-      puts "Created: #{Time.at(file_info['createTime'].to_i).strftime('%Y-%m-%d %H:%M:%S')}" if file_info['createTime']
-      puts "Expires: #{Time.at(file_info['expirationTime'].to_i).strftime('%Y-%m-%d %H:%M:%S')}" if file_info['expirationTime']
+      puts "Creation date: #{Time.at(file_info['createTime'].to_i).strftime('%Y-%m-%d %H:%M:%S')}" if file_info['createTime']
+      puts "Expiration date: #{Time.at(file_info['expirationTime'].to_i).strftime('%Y-%m-%d %H:%M:%S')}" if file_info['expirationTime']
       puts "URI: #{file_info['uri']}" if file_info['uri']
       puts "Status: #{file_info['state']}" if file_info['state']
       puts "======================="
@@ -138,7 +152,7 @@ begin
       puts "Failed to retrieve file information: #{e.message}"
     end
     
-    puts "File will be automatically deleted after 48 hours"
+    puts "The file will be automatically deleted after 48 hours"
   rescue => e
     puts "Error occurred during file upload: #{e.class} - #{e.message}"
     puts e.backtrace.join("\n") if ENV["DEBUG"]

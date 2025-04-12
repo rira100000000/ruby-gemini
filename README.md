@@ -13,6 +13,7 @@ This project is inspired by and pays homage to [ruby-openai](https://github.com/
 - Audio transcription capabilities
 - Thread and message management for chat applications
 - Runs management for executing AI tasks
+- Convenient Response object for easy access to generated content
 
 ## Installation
 
@@ -50,10 +51,11 @@ response = client.generate_content(
   model: "gemini-2.0-flash-lite"
 )
 
-# Access the generated content
-if response["candidates"] && !response["candidates"].empty?
-  text = response["candidates"][0]["content"]["parts"][0]["text"]
-  puts text
+# Access the generated content using Response object
+if response.valid?
+  puts response.text
+else
+  puts "Error: #{response.error}"
 end
 ```
 
@@ -94,10 +96,16 @@ response = client.chat(parameters: {
   contents: contents
 })
 
-# Process the response
-if response["candidates"] && !response["candidates"].empty?
-  puts response["candidates"][0]["content"]["parts"][0]["text"]
+# Process the response using Response object
+if response.success?
+  puts response.text
+else
+  puts "Error: #{response.error}"
 end
+
+# You can also access other response information
+puts "Finish reason: #{response.finish_reason}"
+puts "Token usage: #{response.total_tokens}"
 ```
 
 ### Using System Instructions
@@ -117,8 +125,74 @@ response = client.chat(parameters: {
   contents: [{ role: "user", parts: [{ text: "How do I write a simple web server in Ruby?" }] }]
 })
 
-puts response["candidates"][0]["content"]["parts"][0]["text"]
+# Access the response
+puts response.text
+
+# Check if the response was blocked for safety reasons
+if response.safety_blocked?
+  puts "Response was blocked due to safety considerations"
+end
 ```
+
+### Image Recognition
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# Analyze an image file (note: file size limit is 20MB for direct upload)
+response = client.generate_content(
+  [
+    { type: "text", text: "Describe what you see in this image" },
+    { type: "image_file", image_file: { file_path: "path/to/image.jpg" } }
+  ],
+  model: "gemini-2.0-flash"
+)
+
+# Access the description using Response object
+if response.success?
+  puts response.text
+else
+  puts "Image analysis failed: #{response.error}"
+end
+```
+
+For image files larger than 20MB, you should use the `files.upload` method:
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# Upload large image file
+file = File.open("path/to/large_image.jpg", "rb")
+upload_result = client.files.upload(file: file)
+# Get file uri and name from the response
+file_uri = upload_result["file"]["uri"]
+file_name = upload_result["file"]["name"]
+
+# Use the file URI for image analysis
+response = client.generate_content(
+  [
+    { text: "Describe this image in detail" },
+    { file_data: { mime_type: "image/jpeg", file_uri: file_uri } }
+  ],
+  model: "gemini-2.0-flash"
+)
+
+# Process the response using Response object
+if response.success?
+  puts response.text
+else
+  puts "Image analysis failed: #{response.error}"
+end
+
+# Optionally delete the file when done
+client.files.delete(name: file_name)
+```
+
+For more examples, check out the `demo/vision_demo.rb` and `demo/file_vision_demo.rb` files included with the gem.
 
 ### Audio Transcription
 
@@ -137,7 +211,12 @@ response = client.audio.transcribe(
   }
 )
 
-puts response["text"]
+# Response object makes accessing the transcription easy
+if response.success?
+  puts response.text
+else
+  puts "Transcription failed: #{response.error}"
+end
 ```
 
 For audio files larger than 20MB, you should use the `files.upload` method:
@@ -163,7 +242,12 @@ response = client.audio.transcribe(
   }
 )
 
-puts response["text"]
+# Check if the response was successful and get the transcription
+if response.success?
+  puts response.text
+else
+  puts "Transcription failed: #{response.error}"
+end
 
 # Optionally delete the file when done
 client.files.delete(name: file_name)
@@ -208,6 +292,50 @@ messages["data"].each do |msg|
 end
 ```
 
+### Working with Response Objects
+
+The Response object provides several useful methods for working with API responses:
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+response = client.generate_content(
+  "Tell me about the Ruby programming language",
+  model: "gemini-2.0-flash-lite"
+)
+
+# Basic response information
+puts "Valid response? #{response.valid?}"
+puts "Success? #{response.success?}"
+
+# Access text content
+puts "Text: #{response.text}"
+puts "Formatted text: #{response.formatted_text}"
+
+# Get individual text parts
+puts "Text parts: #{response.text_parts.size}"
+response.text_parts.each_with_index do |part, i|
+  puts "Part #{i+1}: #{part[0..30]}..." # Print beginning of each part
+end
+
+# Access first candidate
+puts "First candidate role: #{response.role}"
+
+# Token usage information
+puts "Prompt tokens: #{response.prompt_tokens}"
+puts "Completion tokens: #{response.completion_tokens}"
+puts "Total tokens: #{response.total_tokens}"
+
+# Safety information
+puts "Finish reason: #{response.finish_reason}"
+puts "Safety blocked? #{response.safety_blocked?}"
+
+# Raw data access for advanced needs
+puts "Raw response data available? #{!response.raw_data.nil?}"
+```
+
 ### Configuration
 
 Configure the client with custom options:
@@ -244,6 +372,9 @@ The gem includes several demo applications that showcase its functionality:
 - `demo/demo.rb` - Basic text generation and chat
 - `demo/stream_demo.rb` - Streaming text generation
 - `demo/audio_demo.rb` - Audio transcription
+- `demo/vision_demo.rb` - Image recognition
+- `demo/file_vision_demo.rb` - Image recognition with large image files
+- `demo/file_audio_demo.rb` - Audio transcription with large audio files
 
 Run the demos with:
 
@@ -261,7 +392,13 @@ ruby demo/stream_demo.rb
 ruby demo/audio_demo.rb path/to/audio/file.mp3
 
 # Audio transcription with over 20MB audio file
-ruby demo/file_audio_demo_ja.rb path/to/audio/file.mp3
+ruby demo/file_audio_demo.rb path/to/audio/file.mp3
+
+# Image recognition
+ruby demo/vision_demo.rb path/to/image/file.jpg
+
+# Image recognition with large image files
+ruby demo/file_vision_demo.rb path/to/image/file.jpg
 ```
 
 ## Models
