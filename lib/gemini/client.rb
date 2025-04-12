@@ -107,21 +107,30 @@ module Gemini
     # Helper methods for convenience
     
     # Method with usage similar to OpenAI's chat
-    # Supports streaming callbacks
-    # Added system_instruction parameter
-    # Added support for image inputs
-    def generate_content(prompt, model: "gemini-2.0-flash-lite", system_instruction: nil, **parameters, &stream_callback)
+    def generate_content(prompt, model: "gemini-2.0-flash-lite", system_instruction: nil, 
+                        response_mime_type: nil, response_schema: nil, **parameters, &stream_callback)
       # For image/text combinations, the prompt is passed as an array
-      # example: [{type: "text", text: "これは何ですか？"}, {type: "image_url", image_url: {url: "https://example.com/image.jpg"}}]
+      # example: [{type: "text", text: "What is this?"}, {type: "image_url", image_url: {url: "https://example.com/image.jpg"}}]
       content = format_content(prompt)
       params = {
         contents: [content],
         model: model
       }
       
-      # Add system_instruction if provided
       if system_instruction
         params[:system_instruction] = format_content(system_instruction)
+      end
+      
+      if response_mime_type || response_schema
+        params[:generation_config] ||= {}
+        
+        if response_mime_type
+          params[:generation_config]["response_mime_type"] = response_mime_type
+        end
+        
+        if response_schema
+          params[:generation_config]["response_schema"] = response_schema
+        end
       end
       
       # Merge other parameters
@@ -133,11 +142,10 @@ module Gemini
         chat(parameters: params)
       end
     end
-    
+
     # Streaming text generation
-    # Provides same functionality as generate_content above, but explicitly for streaming
-    # Added system_instruction parameter
-    def generate_content_stream(prompt, model: "gemini-2.0-flash-lite", system_instruction: nil, **parameters, &block)
+    def generate_content_stream(prompt, model: "gemini-2.0-flash-lite", system_instruction: nil,
+                              response_mime_type: nil, response_schema: nil, **parameters, &block)
       raise ArgumentError, "Block is required for streaming" unless block_given?
       
       content = format_content(prompt)
@@ -146,9 +154,20 @@ module Gemini
         model: model
       }
       
-      # Add system_instruction if provided
       if system_instruction
         params[:system_instruction] = format_content(system_instruction)
+      end
+      
+      if response_mime_type || response_schema
+        params[:generation_config] ||= {}
+        
+        if response_mime_type
+          params[:generation_config][:response_mime_type] = response_mime_type
+        end
+        
+        if response_schema
+          params[:generation_config][:response_schema] = response_schema
+        end
       end
       
       # Merge other parameters
@@ -156,7 +175,6 @@ module Gemini
       
       chat(parameters: params, &block)
     end
-
     # Debug inspect method
     def inspect
       vars = instance_variables.map do |var|

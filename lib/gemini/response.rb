@@ -301,5 +301,102 @@ module Gemini
     def inspect
       "#<Gemini::Response text=#{text ? text[0..30] + (text.length > 30 ? '...' : '') : 'nil'} success=#{success?}>"
     end
+
+    def json
+      return nil unless valid?
+      
+      text_content = text
+      return nil unless text_content
+      
+      begin
+        if text_content.strip.start_with?('{') || text_content.strip.start_with?('[')
+          JSON.parse(text_content)
+        else
+          nil
+        end
+      rescue JSON::ParserError => e
+        nil
+      end
+    end
+    
+    def json?
+      !json.nil?
+    end
+    
+    def as_json_object(model_class)
+      json_data = json
+      return nil unless json_data
+      
+      begin
+        if model_class.respond_to?(:from_json)
+          model_class.from_json(json_data)
+        elsif defined?(ActiveModel::Model) && model_class.ancestors.include?(ActiveModel::Model)
+          model_class.new(json_data)
+        else
+          instance = model_class.new
+          
+          json_data.each do |key, value|
+            setter_method = "#{key}="
+            if instance.respond_to?(setter_method)
+              instance.send(setter_method, value)
+            end
+          end
+          
+          instance
+        end
+      rescue => e
+        nil
+      end
+    end
+    
+    def as_json_array(model_class)
+      json_data = json
+      return [] unless json_data && json_data.is_a?(Array)
+      
+      begin
+        json_data.map do |item|
+          if model_class.respond_to?(:from_json)
+            model_class.from_json(item)
+          elsif defined?(ActiveModel::Model) && model_class.ancestors.include?(ActiveModel::Model)
+            model_class.new(item)
+          else
+            instance = model_class.new
+            
+            item.each do |key, value|
+              setter_method = "#{key}="
+              if instance.respond_to?(setter_method)
+                instance.send(setter_method, value)
+              end
+            end
+            
+            instance
+          end
+        end
+      rescue => e
+        []
+      end
+    end
+    
+    def as_json_with_keys(*keys)
+      json_data = json
+      return [] unless json_data && json_data.is_a?(Array)
+      
+      json_data.map do |item|
+        keys.each_with_object({}) do |key, result|
+          result[key.to_s] = item[key.to_s] if item.key?(key.to_s)
+        end
+      end
+    end
+    
+    def to_formatted_json(pretty: false)
+      json_data = json
+      return nil unless json_data
+      
+      if pretty
+        JSON.pretty_generate(json_data)
+      else
+        JSON.generate(json_data)
+      end
+    end
   end
 end
