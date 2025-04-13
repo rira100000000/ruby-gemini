@@ -23,12 +23,13 @@ module Gemini
       # MIMEタイプを判定
       mime_type ||= file_path ? @client.determine_mime_type(file_path) : "application/octet-stream"
       
-      # モデルを取得
-      model ||= parameters[:model] || "gemini-1.5-flash"
+      # モデルを取得（models/プレフィックスを追加）
+      model_name = model || parameters[:model] || "gemini-1.5-flash"
+      model_name = "models/#{model_name}" unless model_name.start_with?("models/")
       
-      # キャッシュリクエストを構築
+      # キャッシュリクエストを構築（キャメルケースに注意）
       request = {
-        model: model,
+        model: model_name,
         contents: [
           {
             parts: [
@@ -40,54 +41,107 @@ module Gemini
         ttl: ttl
       }
       
-      # システム指示が指定されている場合は追加
+      # システム指示が指定されている場合は追加（キャメルケースで指定）
       if system_instruction
-        request[:system_instruction] = {
+        request[:systemInstruction] = {
           parts: [{ text: system_instruction }],
           role: "system"
         }
       end
       
-      # その他のパラメータを追加
+      # その他のパラメータを追加（ただしmime_typeとmodelは除外）
       parameters.each do |key, value|
-        request[key] = value unless [:mime_type, :model].include?(key)
+        next if [:mime_type, :model].include?(key)
+        
+        # スネークケースをキャメルケースに変換（必要に応じて）
+        camel_key = key.to_s.gsub(/_([a-z])/) { $1.upcase }.to_sym
+        request[camel_key] = value
       end
       
-      # APIリクエスト
-      response = @client.json_post(
-        path: "v1beta/cachedContents",
-        parameters: request
-      )
+      # リクエストURLを直接構築
+      full_url = "https://generativelanguage.googleapis.com/v1beta/cachedContents"
       
-      Gemini::Response.new(response)
+      # 直接Faradayを使用してリクエストを送信
+      conn = @client.conn
+      response = conn.post(full_url) do |req|
+        req.headers = @client.headers
+        req.params = { key: @client.api_key }
+        req.body = request.to_json
+      end
+      
+      parsed_response = begin
+        JSON.parse(response.body)
+      rescue JSON::ParserError
+        response.body
+      end
+      
+      Gemini::Response.new(parsed_response)
     end
 
     # キャッシュの一覧を取得
     def list(parameters: {})
-      response = @client.get(
-        path: "v1beta/cachedContents",
-        parameters: parameters
-      )
+      # パラメータをキャメルケースに変換
+      camel_params = {}
+      parameters.each do |key, value|
+        camel_key = key.to_s.gsub(/_([a-z])/) { $1.upcase }
+        camel_params[camel_key] = value
+      end
       
-      Gemini::Response.new(response)
+      # 直接URLを構築
+      full_url = "https://generativelanguage.googleapis.com/v1beta/cachedContents"
+      
+      # 直接Faradayを使用
+      conn = @client.conn
+      response = conn.get(full_url) do |req|
+        req.headers = @client.headers
+        req.params = camel_params.merge(key: @client.api_key)
+      end
+      
+      parsed_response = begin
+        JSON.parse(response.body)
+      rescue JSON::ParserError
+        response.body
+      end
+      
+      Gemini::Response.new(parsed_response)
     end
 
     # キャッシュを更新
-    def update(name:, ttl: "86400s")
-      response = @client.json_post(
-        path: "v1beta/#{name}",
-        parameters: { ttl: ttl },
-        query_parameters: { method: "PATCH" }
-      )
+    def update(name:, ttl: "86400s")      
+      full_url = "https://generativelanguage.googleapis.com/v1beta/#{name}"
       
-      Gemini::Response.new(response)
+      conn = @client.conn
+      response = conn.patch(full_url) do |req|
+        req.headers = @client.headers
+        req.params = { key: @client.api_key }
+        req.body = { ttl: ttl }.to_json
+      end
+      
+      parsed_response = begin
+        JSON.parse(response.body)
+      rescue JSON::ParserError
+        response.body
+      end
+      
+      Gemini::Response.new(parsed_response)
     end
 
-    # キャッシュを削除
     def delete(name:)
-      response = @client.delete(path: "v1beta/#{name}")
+      full_url = "https://generativelanguage.googleapis.com/v1beta/#{name}"
       
-      Gemini::Response.new(response)
+      conn = @client.conn
+      response = conn.delete(full_url) do |req|
+        req.headers = @client.headers
+        req.params = { key: @client.api_key }
+      end
+      
+      parsed_response = begin
+        JSON.parse(response.body)
+      rescue JSON::ParserError
+        response.body
+      end
+      
+      Gemini::Response.new(parsed_response)
     end
   end
 end

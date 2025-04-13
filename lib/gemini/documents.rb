@@ -69,13 +69,18 @@ module Gemini
         file_uri = upload_result["file"]["uri"]
         file_name = upload_result["file"]["name"]
         
-        # キャッシュに保存
+        # モデル名の取得と調整
+        model = parameters[:model] || "gemini-1.5-flash"
+        model = "models/#{model}" unless model.start_with?("models/")
+        
+        # キャッシュに保存（パラメータの名前に注意）
         cache_result = @client.cached_content.create(
           file_uri: file_uri,
           mime_type: mime_type,
           system_instruction: system_instruction,
+          model: model,
           ttl: ttl,
-          **parameters.reject { |k, _| [:mime_type].include?(k) }
+          **parameters.reject { |k, _| [:mime_type, :model].include?(k) }
         )
         
         # 結果とファイル情報を返す

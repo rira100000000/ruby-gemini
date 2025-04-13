@@ -255,6 +255,36 @@ module Gemini
       end
     end
 
+    def generate_content_with_cache(prompt, cached_content:, model: "gemini-1.5-flash", **parameters)
+      # モデル名にmodels/プレフィックスを追加
+      model_name = model.start_with?("models/") ? model : "models/#{model}"
+      
+      # リクエストパラメータを構築
+      params = {
+        contents: [
+          {
+            parts: [{ text: prompt }],
+            role: "user"
+          }
+        ],
+        cachedContent: cached_content
+      }
+      
+      # その他のパラメータをマージ
+      params.merge!(parameters)
+      
+      # 直接エンドポイントURLを構築
+      endpoint = "#{model_name}:generateContent"
+      
+      # APIリクエスト
+      response = json_post(
+        path: endpoint,
+        parameters: params
+      )
+      
+      Gemini::Response.new(response)
+    end
+
     # 単一ファイルのヘルパー
     def chat_with_file(file_path, prompt, model: "gemini-1.5-flash", **parameters)
       chat_with_multimodal([file_path], prompt, model: model, **parameters)
