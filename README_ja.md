@@ -12,8 +12,10 @@ Google のGemini API用Rubyクライアントライブラリです。このgem�
 - 音声文字起こし機能
 - チャットアプリケーション用のスレッドとメッセージ管理
 - AIタスク実行のためのRun管理
-- 生成されたコンテンツに簡単にアクセスするための便利なResponseオブジェクト
+- 便利なResponseオブジェクト
 - JSONスキーマとenum制約による構造化出力
+- PDF等のドキュメント処理
+- コンテキストキャッシュによる処理の効率化
 
 ## インストール
 
@@ -304,6 +306,154 @@ client.files.delete(name: file_name)
 
 より詳しい例は、gemに含まれる`demo/file_audio_demo_ja.rb`ファイルをご覧ください。
 
+### ドキュメント処理
+
+Gemini APIは、PDFなどの長いドキュメント（最大3,600ページ）を処理することができます。ドキュメント内のテキストと画像の両方の内容を理解し、分析、要約、質問応答などを行うことができます。
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# PDFドキュメントを処理
+result = client.documents.process(
+  file_path: "path/to/document.pdf",
+  prompt: "このドキュメントの主要なポイントを3つ要約してください",
+  model: "gemini-1.5-flash"
+)
+
+response = result[:response]
+
+# レスポンスを確認
+if response.success?
+  puts response.text
+else
+  puts "ドキュメント処理に失敗しました: #{response.error}"
+end
+
+# ファイル情報（オプション）
+puts "ファイルURI: #{result[:file_uri]}"
+puts "ファイル名: #{result[:file_name]}"
+```
+
+より複雑なドキュメント処理には、会話形式でドキュメントについて質問することもできます：
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# ドキュメントとの会話を開始
+file_path = "path/to/document.pdf"
+thread_result = client.chat_with_file(
+  file_path,
+  "このドキュメントの概要を教えてください",
+  model: "gemini-1.5-flash"
+)
+
+# スレッドIDを取得（続きの会話に使用）
+thread_id = thread_result[:thread_id]
+
+# メッセージを追加して会話を続ける
+client.messages.create(
+  thread_id: thread_id,
+  parameters: {
+    role: "user",
+    content: "さらに詳しく教えてください"
+  }
+)
+
+# 実行して応答を取得
+run = client.runs.create(thread_id: thread_id)
+
+# 会話履歴を取得
+messages = client.messages.list(thread_id: thread_id)
+puts "会話履歴:"
+messages["data"].each do |msg|
+  role = msg["role"]
+  content = msg["content"].map { |c| c["text"]["value"] }.join("\n")
+  puts "#{role.upcase}: #{content}"
+  puts "--------------------------"
+end
+```
+
+サポートされているドキュメント形式:
+- PDF - application/pdf
+- テキスト - text/plain
+- HTML - text/html
+- CSS - text/css
+- マークダウン - text/md
+- CSV - text/csv
+- XML - text/xml
+- RTF - text/rtf
+- JavaScript - application/x-javascript、text/javascript
+- Python - application/x-python、text/x-python
+
+デモアプリケーションは `demo/document_chat_demo.rb` および `demo/document_conversation_demo.rb` でご確認いただけます。
+
+### コンテキストキャッシュ
+
+コンテキストキャッシュを使用すると、大きなドキュメントや画像などの入力をGemini APIに事前処理させて保存し、繰り返し使用することができます。これにより、同じファイルに対して複数の質問を行う際に処理時間とトークン使用量を節約できます。
+
+**重要**: コンテキストキャッシュには最小入力トークン数が32,768必要です。最大トークン数は使用するモデルのコンテキストウィンドウサイズと同じです。キャッシュは48時間後に自動的に削除されますが、TTL（Time To Live）を設定して延長することもできます。モデルは固定バージョンの安定版モデル（gemini-1.5-pro-001 など）でのみ使用できます。バージョンの接尾辞（gemini-1.5-pro-001 の -001 など）を含める必要があります。
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# ドキュメントをキャッシュに保存
+cache_result = client.documents.cache(
+  file_path: "path/to/large_document.pdf",
+  system_instruction: "あなたはドキュメント分析エキスパートです。ドキュメントの内容を詳細に理解し、質問に正確に答えてください。",
+  ttl: "86400s", # 24時間（秒単位）
+  model: "gemini-1.5-flash-001"
+)
+
+# キャッシュ名を取得
+cache_name = cache_result[:cache][:name]
+puts "キャッシュ名: #{cache_name}"
+
+# キャッシュを使用して質問
+response = client.generate_content_with_cache(
+  "このドキュメントの主要な発見事項は何ですか？",
+  cached_content: cache_name,
+  model: "gemini-1.5-flash-001"
+)
+
+if response.success?
+  puts response.text
+else
+  puts "エラー: #{response.error}"
+end
+
+# キャッシュの有効期限を延長
+client.cached_content.update(
+  name: cache_name,
+  ttl: "172800s" # 48時間（秒単位）
+)
+
+# キャッシュを削除（使用後）
+client.cached_content.delete(name: cache_name)
+```
+
+キャッシュの一覧を取得することもできます：
+
+```ruby
+# すべてのキャッシュを一覧表示
+caches = client.cached_content.list
+puts "キャッシュ一覧:"
+caches.raw_data["cachedContents"].each do |cache|
+  puts "名前: #{cache['name']}"
+  puts "モデル: #{cache['model']}"
+  puts "有効期限: #{cache['expireTime']}"
+  puts "トークン数: #{cache.dig('usageMetadata', 'totalTokenCount')}"
+  puts "--------------------------"
+end
+```
+
+コンテキストキャッシュのデモは `demo/document_cache_demo.rb` でご確認いただけます。
+
 ### JSONスキーマによる構造化出力
 
 JSONスキーマを指定することで、構造化されたJSON形式でレスポンスを要求できます：
@@ -538,6 +688,9 @@ client.add_headers({"X-Custom-Header" => "value"})
 - `demo/file_audio_demo_ja.rb` - 大きな音声ファイルによる音声文字起こし
 - `demo/structured_output_demo_ja.rb` - スキーマによる構造化JSON出力
 - `demo/enum_response_demo_ja.rb` - 列挙型で制約されたレスポンス
+- `demo/document_chat_demo.rb` - ドキュメント処理
+- `demo/document_conversation_demo.rb` - ドキュメントとの会話
+- `demo/document_cache_demo.rb` - ドキュメントキャッシュ
 
 デモは以下のように実行できます：
 
@@ -571,6 +724,15 @@ ruby demo/structured_output_demo_ja.rb
 
 # 列挙型で制約されたレスポンス
 ruby demo/enum_response_demo_ja.rb
+
+# ドキュメント処理
+ruby demo/document_chat_demo.rb path/to/document.pdf
+
+# ドキュメントとの会話
+ruby demo/document_conversation_demo.rb path/to/document.pdf
+
+# ドキュメントのキャッシュと質問
+ruby demo/document_cache_demo.rb path/to/document.pdf
 ```
 
 ## モデル

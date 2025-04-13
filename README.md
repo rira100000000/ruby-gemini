@@ -15,6 +15,8 @@ This project is inspired by and pays homage to [ruby-openai](https://github.com/
 - Runs management for executing AI tasks
 - Convenient Response object for easy access to generated content
 - Structured output with JSON schema and enum constraints
+- Document processing (PDFs and other formats)
+- Context caching for efficient processing
 
 ## Installation
 
@@ -305,6 +307,154 @@ client.files.delete(name: file_name)
 
 For more examples, check out the `demo/file_audio_demo.rb` file included with the gem.
 
+### Document Processing
+
+Gemini API can process long documents (up to 3,600 pages), including PDFs. Gemini models understand both text and images within the document, enabling you to analyze, summarize, and extract information.
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# Process a PDF document
+result = client.documents.process(
+  file_path: "path/to/document.pdf",
+  prompt: "Summarize this document in three key points",
+  model: "gemini-1.5-flash"
+)
+
+response = result[:response]
+
+# Check the response
+if response.success?
+  puts response.text
+else
+  puts "Document processing failed: #{response.error}"
+end
+
+# File information (optional)
+puts "File URI: #{result[:file_uri]}"
+puts "File name: #{result[:file_name]}"
+```
+
+For more complex document processing, you can have a conversation about the document:
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# Start a conversation with a document
+file_path = "path/to/document.pdf"
+thread_result = client.chat_with_file(
+  file_path,
+  "Please provide an overview of this document",
+  model: "gemini-1.5-flash"
+)
+
+# Get the thread ID (for continuing the conversation)
+thread_id = thread_result[:thread_id]
+
+# Add another message to continue the conversation
+client.messages.create(
+  thread_id: thread_id,
+  parameters: {
+    role: "user",
+    content: "Tell me more details about it"
+  }
+)
+
+# Execute to get a response
+run = client.runs.create(thread_id: thread_id)
+
+# Get conversation history
+messages = client.messages.list(thread_id: thread_id)
+puts "Conversation history:"
+messages["data"].each do |msg|
+  role = msg["role"]
+  content = msg["content"].map { |c| c["text"]["value"] }.join("\n")
+  puts "#{role.upcase}: #{content}"
+  puts "--------------------------"
+end
+```
+
+Supported document formats:
+- PDF - application/pdf
+- Text - text/plain
+- HTML - text/html
+- CSS - text/css
+- Markdown - text/md
+- CSV - text/csv
+- XML - text/xml
+- RTF - text/rtf
+- JavaScript - application/x-javascript, text/javascript
+- Python - application/x-python, text/x-python
+
+Demo applications can be found in `demo/document_chat_demo.rb` and `demo/document_conversation_demo.rb`.
+
+### Context Caching
+
+Context caching allows you to preprocess and store inputs like large documents or images with the Gemini API, then reuse them across multiple requests. This saves processing time and token usage when asking different questions about the same content.
+
+**Important**: Context caching requires a minimum input of 32,768 tokens. The maximum token count matches the context window size of the model you are using. Caches automatically expire after 48 hours, but you can set a custom TTL (Time To Live).Models are only available in fixed version stable models (e.g. gemini-1.5-pro-001).The version suffix (e.g. -001 for gemini-1.5-pro-001) must be included.
+
+```ruby
+require 'gemini'
+
+client = Gemini::Client.new(ENV['GEMINI_API_KEY'])
+
+# Cache a document for repeated use
+cache_result = client.documents.cache(
+  file_path: "path/to/large_document.pdf",
+  system_instruction: "You are a document analysis expert. Please understand the content thoroughly and answer questions accurately.",
+  ttl: "86400s", # 24 hours (in seconds)
+  model: "gemini-1.5-flash-001"
+)
+
+# Get the cache name
+cache_name = cache_result[:cache][:name]
+puts "Cache name: #{cache_name}"
+
+# Ask questions using the cache
+response = client.generate_content_with_cache(
+  "What are the key findings in this document?",
+  cached_content: cache_name,
+  model: "gemini-1.5-flash-001"
+)
+
+if response.success?
+  puts response.text
+else
+  puts "Error: #{response.error}"
+end
+
+# Extend cache expiration
+client.cached_content.update(
+  name: cache_name,
+  ttl: "172800s" # 48 hours (in seconds)
+)
+
+# Delete cache when done
+client.cached_content.delete(name: cache_name)
+```
+
+You can also list all your cached content:
+
+```ruby
+# List all caches
+caches = client.cached_content.list
+puts "Cache list:"
+caches.raw_data["cachedContents"].each do |cache|
+  puts "Name: #{cache['name']}"
+  puts "Model: #{cache['model']}"
+  puts "Expires: #{cache['expireTime']}"
+  puts "Token count: #{cache.dig('usageMetadata', 'totalTokenCount')}"
+  puts "--------------------------"
+end
+```
+
+For a complete example of context caching, check out the `demo/document_cache_demo.rb` file.
+
 ### Structured Output with JSON Schema
 
 You can request responses in structured JSON format by specifying a JSON schema:
@@ -539,6 +689,9 @@ The gem includes several demo applications that showcase its functionality:
 - `demo/file_audio_demo.rb` - Audio transcription with large audio files
 - `demo/structured_output_demo.rb` - Structured JSON output with schema
 - `demo/enum_response_demo.rb` - Enum-constrained responses
+- `demo/document_chat_demo.rb` - Document processing
+- `demo/document_conversation_demo.rb` - Conversation with documents
+- `demo/document_cache_demo.rb` - Document caching
 
 Run the demos with:
 
@@ -572,6 +725,15 @@ ruby demo/structured_output_demo.rb
 
 # Enum-constrained responses
 ruby demo/enum_response_demo.rb
+
+# Document processing
+ruby demo/document_chat_demo.rb path/to/document.pdf
+
+# Conversation with a document
+ruby demo/document_conversation_demo.rb path/to/document.pdf
+
+# Document caching and querying
+ruby demo/document_cache_demo.rb path/to/document.pdf
 ```
 
 ## Models
