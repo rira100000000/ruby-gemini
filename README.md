@@ -1,5 +1,5 @@
-[README ‐ 日本語](https://github.com/rira100000000/ruby-gemini/wiki/README-%E2%80%90-%E6%97%A5%E6%9C%AC%E8%AA%9E)
-# Ruby-Gemini
+[README ‐ 日本語](https://github.com/rira100000000/ruby-gemini-api/wiki/README-%E2%80%90-%E6%97%A5%E6%9C%AC%E8%AA%9E)
+# Ruby-Gemini-API
 
 A Ruby client library for Google's Gemini API. This gem provides a simple, intuitive interface for interacting with Gemini's generative AI capabilities, following patterns similar to other AI client libraries.
 
@@ -23,7 +23,7 @@ This project is inspired by and pays homage to [ruby-openai](https://github.com/
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'ruby-gemini'
+gem 'ruby-gemini-api'
 ```
 
 And then execute:
@@ -35,7 +35,7 @@ $ bundle install
 Or install it yourself as:
 
 ```bash
-$ gem install ruby-gemini
+$ gem install ruby-gemini-api
 ```
 
 ## Quick Start

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    ruby-gemini (0.1.0)
+    ruby-gemini-api (0.1.0)
       faraday (~> 2.0)
       faraday-multipart (~> 1.0)
       json (~> 2.0)
@@ -94,7 +94,7 @@ DEPENDENCIES
   rake (~> 13.0)
   rspec (~> 3.0)
   rubocop (~> 1.0)
-  ruby-gemini!
+  ruby-gemini-api!
   vcr (~> 6.3.1)
   webmock (~> 3.0)
 

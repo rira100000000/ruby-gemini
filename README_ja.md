@@ -1,4 +1,4 @@
-# Ruby-Gemini
+# Ruby-Gemini-API
 
 Google のGemini API用Rubyクライアントライブラリです。このgemは、Geminiの生成AI機能と対話するためのシンプルで直感的なインターフェースを提供し、他のAIクライアントライブラリと同様のパターンに従っています。
 
@@ -22,7 +22,7 @@ Google のGemini API用Rubyクライアントライブラリです。このgem�
 アプリケーションのGemfileにこの行を追加します：
 
 ```ruby
-gem 'ruby-gemini'
+gem 'ruby-gemini-api'
 ```
 
 そして、次を実行します：
@@ -34,7 +34,7 @@ $ bundle install
 または、自分でインストールすることもできます：
 
 ```bash
-$ gem install ruby-gemini
+$ gem install ruby-gemini-api
 ```
 
 ## クイックスタート

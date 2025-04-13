@@ -73,7 +73,7 @@ module Gemini
       color = level == :error ? "\033[31m" : "\033[33m"
       logger = Logger.new($stdout)
       logger.formatter = proc do |_severity, _datetime, _progname, msg|
-        "#{color}#{prefix} (spotted in ruby-gemini #{VERSION}): #{msg}\n\033[0m"
+        "#{color}#{prefix} (spotted in ruby-gemini-api #{VERSION}): #{msg}\n\033[0m"
       end
       logger.send(level, message)
     end

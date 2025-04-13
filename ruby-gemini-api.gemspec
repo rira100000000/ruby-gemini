@@ -3,14 +3,14 @@
 require_relative "lib/gemini/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "ruby-gemini"
+  spec.name = "ruby-gemini-api"
   spec.version = Gemini::VERSION
   spec.authors = ["rira100000000"]
   spec.email = ["101010hayakawa@gmail.com"]
 
   spec.summary = "Ruby client for Google's Gemini API"
   spec.description = "A simple Ruby wrapper for interacting with Google Gemini API"
-  spec.homepage = "https://github.com/rira100000000/ruby-gemini"
+  spec.homepage = "https://github.com/rira100000000/ruby-gemini-api"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 

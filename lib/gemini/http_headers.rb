@@ -13,7 +13,7 @@ module Gemini
     def default_headers
       {
         "Content-Type" => "application/json",
-        "User-Agent" => "ruby-gemini/#{Gemini::VERSION}"
+        "User-Agent" => "ruby-gemini-api/#{Gemini::VERSION}"
       }
     end
 

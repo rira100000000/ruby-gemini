@@ -31,7 +31,7 @@ RSpec.describe Gemini::HTTPHeaders do
       headers = instance.send(:headers)
       expect(headers).to include(
         "Content-Type" => "application/json",
-        "User-Agent" => "ruby-gemini/#{Gemini::VERSION}"
+        "User-Agent" => "ruby-gemini-api/#{Gemini::VERSION}"
       )
     end
 
