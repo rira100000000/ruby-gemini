@@ -64,7 +64,8 @@ module Gemini
       # 直接Faradayを使用してリクエストを送信
       conn = @client.conn
       response = conn.post(full_url) do |req|
-        req.headers = @client.headers
+        # ここでheadersメソッドを直接使用するのではなく、Content-Typeを手動で設定
+        req.headers = { 'Content-Type' => 'application/json' }
         req.params = { key: @client.api_key }
         req.body = request.to_json
       end
@@ -93,7 +94,8 @@ module Gemini
       # 直接Faradayを使用
       conn = @client.conn
       response = conn.get(full_url) do |req|
-        req.headers = @client.headers
+        # ここでheadersメソッドを直接使用するのではなく、Content-Typeを手動で設定
+        req.headers = { 'Content-Type' => 'application/json' }
         req.params = camel_params.merge(key: @client.api_key)
       end
       
@@ -112,7 +114,8 @@ module Gemini
       
       conn = @client.conn
       response = conn.patch(full_url) do |req|
-        req.headers = @client.headers
+        # ここでheadersメソッドを直接使用するのではなく、Content-Typeを手動で設定
+        req.headers = { 'Content-Type' => 'application/json' }
         req.params = { key: @client.api_key }
         req.body = { ttl: ttl }.to_json
       end
@@ -131,7 +134,8 @@ module Gemini
       
       conn = @client.conn
       response = conn.delete(full_url) do |req|
-        req.headers = @client.headers
+        # ここでheadersメソッドを直接使用するのではなく、Content-Typeを手動で設定
+        req.headers = { 'Content-Type' => 'application/json' }
         req.params = { key: @client.api_key }
       end
       
