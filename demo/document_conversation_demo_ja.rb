@@ -7,43 +7,43 @@ require 'securerandom'
 logger = Logger.new(STDOUT)
 logger.level = Logger::INFO
 
-# Get API key from environment variable
-api_key = ENV['GEMINI_API_KEY'] || raise("Please set the GEMINI_API_KEY environment variable")
+# APIキーを環境変数から取得
+api_key = ENV['GEMINI_API_KEY'] || raise("GEMINI_API_KEY環境変数を設定してください")
 
 begin
-  logger.info "Initializing Gemini client..."
+  logger.info "Geminiクライアントを初期化しています..."
   client = Gemini::Client.new(api_key)
   
-  puts "Gemini Document Conversation Demo"
+  puts "Gemini ドキュメント会話デモ"
   puts "==================================="
   
-  # Specify document file path
-  document_path = ARGV[0] || raise("Usage: ruby document_conversation_demo_en.rb <document_file_path>")
+  # ドキュメントファイルのパスを指定
+  document_path = ARGV[0] || raise("使用方法: ruby document_chat_conversation_demo.rb <ドキュメントファイルのパス>")
   
-  # Check if file exists
+  # ファイルの存在確認
   unless File.exist?(document_path)
-    raise "File not found: #{document_path}"
+    raise "ファイルが見つかりません: #{document_path}"
   end
   
-  # Display file information
-  file_size = File.size(document_path) / 1024.0 # Size in KB
+  # ファイル情報を表示
+  file_size = File.size(document_path) / 1024.0 # KB単位
   file_extension = File.extname(document_path)
-  puts "File: #{File.basename(document_path)}"
-  puts "Size: #{file_size.round(2)} KB"
-  puts "Type: #{file_extension}"
+  puts "ファイル: #{File.basename(document_path)}"
+  puts "サイズ: #{file_size.round(2)} KB"
+  puts "タイプ: #{file_extension}"
   puts "==================================="
   
-  puts "Processing document..."
+  puts "ドキュメントを処理中..."
   model = "gemini-1.5-flash"
   
-  # Upload file
+  # ファイルをアップロード
   file = File.open(document_path, "rb")
   begin
     upload_result = client.files.upload(file: file)
     file_uri = upload_result["file"]["uri"]
     file_name = upload_result["file"]["name"]
     
-    # Determine MIME type (simple detection from extension)
+    # MIMEタイプを判定（拡張子から簡易判定）
     mime_type = case file_extension.downcase
                 when ".pdf"
                   "application/pdf"
@@ -72,12 +72,12 @@ begin
     file.close
   end
   
-  puts "File has been uploaded: #{file_name}"
+  puts "ファイルがアップロードされました: #{file_name}"
   
-  # Conversation history
+  # 会話履歴
   conversation_history = []
   
-  # Add first message (document)
+  # 最初のメッセージを追加（ドキュメント）
   conversation_history << {
     role: "user",
     parts: [
@@ -85,64 +85,64 @@ begin
     ]
   }
   
-  # Add first question
-  first_question = "Please give a brief description of this document."
+  # 最初の質問を追加
+  first_question = "このドキュメントについて簡単に説明してください。"
   conversation_history << {
     role: "user",
     parts: [{ text: first_question }]
   }
   
-  puts "First question: #{first_question}"
+  puts "最初の質問: #{first_question}"
   
-  # Send to Gemini API
+  # Gemini APIに送信
   response = client.chat(parameters: {
     model: model,
     contents: conversation_history
   })
   
   if response.success?
-    # Add response to log
+    # 応答をログに追加
     conversation_history << {
       role: "model",
       parts: [{ text: response.text }]
     }
     
-    # Display response
-    puts "\n[Model]: #{response.text}"
+    # 応答を表示
+    puts "\n[モデル]: #{response.text}"
   else
-    raise "Failed to generate initial response: #{response.error || 'Unknown error'}"
+    raise "最初の応答を生成できませんでした: #{response.error || '不明なエラー'}"
   end
   
-  # Command completion settings
+  # コマンド補完用の設定
   COMMANDS = ['exit', 'history', 'help'].freeze
   Readline.completion_proc = proc { |input|
     COMMANDS.grep(/^#{Regexp.escape(input)}/)
   }
   
-  puts "\nYou can ask questions about the document. Commands: exit, history, help"
+  puts "\nドキュメントについて質問できます。コマンド: exit (終了), history (履歴), help (ヘルプ)"
   
-  # Conversation loop
+  # 会話ループ
   loop do
-    # User input
+    # ユーザー入力
     user_input = Readline.readline("\n> ", true)
     
-    # If input is nil (Ctrl+D)
+    # 入力がnil（Ctrl+D）の場合
     break if user_input.nil?
     
     user_input = user_input.strip
     
-    # Command processing
+    # コマンド処理
     case user_input.downcase
     when 'exit'
-      puts "Ending conversation."
+      puts "会話を終了します。"
       break
       
     when 'history'
-      puts "\n=== Conversation History ==="
+      puts "\n=== 会話履歴 ==="
       conversation_history.each do |msg|
         role = msg[:role]
         if msg[:parts].first.key?(:file_data)
-          puts "[#{role}]: [DOCUMENT]"
+          puts "[#{role}]: [ドキュメント]"
         else
           content_text = msg[:parts].map { |part| part[:text] }.join("\n")
           puts "[#{role}]: #{content_text}"
@@ -152,28 +152,28 @@ begin
       next
       
     when 'help'
-      puts "\nCommands:"
-      puts "  exit    - End conversation"
-      puts "  history - Display conversation history"
-      puts "  help    - Display this help"
-      puts "  other   - Ask questions about the document"
+      puts "\nコマンド:"
+      puts "  exit    - 会話を終了"
+      puts "  history - 会話履歴を表示"
+      puts "  help    - このヘルプを表示"
+      puts "  その他  - ドキュメントに関する質問"
       next
       
     when ''
-      # Skip empty input
+      # 空の入力の場合はスキップ
       next
     end
     
-    # Add user's question to conversation history
+    # ユーザーの質問を会話履歴に追加
     conversation_history << {
       role: "user",
       parts: [{ text: user_input }]
     }
     
-    # Send to Gemini API
+    # Gemini APIに送信
     begin
-      # Display processing message
-      puts "Processing..."
+      # 処理中の表示
+      puts "処理中..."
       
       response = client.chat(parameters: {
         model: model,
@@ -181,23 +181,23 @@ begin
       })
       
       if response.success?
-        # Add response to log
+        # 応答をログに追加
         conversation_history << {
           role: "model",
           parts: [{ text: response.text }]
         }
         
-        # Display response
-        puts "\n[Model]: #{response.text}"
+        # 応答を表示
+        puts "\n[モデル]: #{response.text}"
       else
-        puts "Error: #{response.error || 'Unknown error'}"
+        puts "エラー: #{response.error || '不明なエラー'}"
       end
     rescue => e
-      puts "An error occurred: #{e.message}"
+      puts "エラーが発生しました: #{e.message}"
     end
   end
 
 rescue StandardError => e
-  logger.error "An error occurred: #{e.message}"
+  logger.error "エラーが発生しました: #{e.message}"
   logger.error e.backtrace.join("\n") if ENV["DEBUG"]
 end

@@ -8,29 +8,29 @@ require 'readline'
 require 'fileutils'
 require 'time'
 
-# APIキーを環境変数から取得
-api_key = ENV['GEMINI_API_KEY'] || raise("GEMINI_API_KEY環境変数を設定してください")
+# Get API key from environment variable
+api_key = ENV['GEMINI_API_KEY'] || raise("Please set the GEMINI_API_KEY environment variable")
 
-# キャッシュ情報を保存するファイル
+# File to save cache information
 cache_info_file = "gemini_cache_info.json"
 
-# モード選択: 新規キャッシュ作成 or 既存キャッシュ利用
+# Mode selection: Create new cache or use existing cache
 cache_mode = :create
 cache_name = nil
-model = "gemini-1.5-flash-001" # デフォルトモデル
+model = "gemini-1.5-flash-001" # Default model
 
 if File.exist?(cache_info_file) && !ENV['FORCE_NEW_CACHE']
   begin
-    # キャッシュ情報を読み込む
+    # Load cache information
     cache_info = JSON.parse(File.read(cache_info_file))
     cache_name = cache_info["cache_name"]
     document_name = cache_info["document_name"]
     
-    puts "既存のキャッシュ情報が見つかりました："
-    puts "  キャッシュ名: #{cache_name}"
-    puts "  ドキュメント: #{document_name}"
+    puts "Found existing cache information:"
+    puts "  Cache name: #{cache_name}"
+    puts "  Document: #{document_name}"
     
-    # キャッシュの有効性を確認
+    # Verify cache validity
     begin
       conn = Faraday.new do |f|
         f.options[:timeout] = 30
@@ -46,63 +46,63 @@ if File.exist?(cache_info_file) && !ENV['FORCE_NEW_CACHE']
           expire_time = Time.parse(cache_data["expireTime"])
           current_time = Time.now
           
-          puts "  有効期限: #{expire_time.strftime('%Y-%m-%d %H:%M:%S')}"
-          puts "  現在時刻: #{current_time.strftime('%Y-%m-%d %H:%M:%S')}"
+          puts "  Expiration: #{expire_time.strftime('%Y-%m-%d %H:%M:%S')}"
+          puts "  Current time: #{current_time.strftime('%Y-%m-%d %H:%M:%S')}"
           
           if current_time < expire_time
-            puts "キャッシュは有効です。再利用モードで起動します。"
+            puts "Cache is valid. Starting in reuse mode."
             cache_mode = :reuse
-            # モデル情報も取得
+            # Get model information
             model = cache_data["model"].sub("models/", "") if cache_data["model"]
-            puts "  モデル: #{model}"
+            puts "  Model: #{model}"
           else
-            puts "キャッシュの有効期限が切れています。新規作成モードで起動します。"
+            puts "Cache has expired. Starting in creation mode."
           end
         else
-          puts "キャッシュ情報の確認に失敗しました。新規作成モードで起動します。"
+          puts "Failed to verify cache information. Starting in creation mode."
         end
       else
-        puts "キャッシュの確認でエラーが発生しました（ステータス: #{response.status}）"
-        puts "新規作成モードで起動します。"
+        puts "Error occurred while checking cache (Status: #{response.status})"
+        puts "Starting in creation mode."
       end
     rescue => e
-      puts "キャッシュの確認中にエラーが発生しました: #{e.message}"
-      puts "新規作成モードで起動します。"
+      puts "Error occurred while checking cache: #{e.message}"
+      puts "Starting in creation mode."
     end
   rescue => e
-    puts "キャッシュ情報の読み込みに失敗しました: #{e.message}"
-    puts "新規作成モードで起動します。"
+    puts "Failed to load cache information: #{e.message}"
+    puts "Starting in creation mode."
   end
 else
-  puts "キャッシュ情報が見つからないか、強制新規作成モードです。"
-  puts "新規作成モードで起動します。"
+  puts "Cache information not found or force new cache mode enabled."
+  puts "Starting in creation mode."
 end
 
 puts "==================================="
 
-# キャッシュ新規作成モードの場合
+# For new cache creation mode
 if cache_mode == :create
-  # ドキュメントファイルのパスを指定
-  file_path = ARGV[0] || raise("使用方法: ruby direct_cache_demo.rb <ドキュメントファイルのパス>")
+  # Specify document file path
+  file_path = ARGV[0] || raise("Usage: ruby document_cache_demo_en.rb <document_file_path>")
   
-  # ファイルの存在確認
+  # Check if file exists
   unless File.exist?(file_path)
-    raise "ファイルが見つかりません: #{file_path}"
+    raise "File not found: #{file_path}"
   end
   
-  # ファイル情報を表示
-  file_size = File.size(file_path) / 1024.0 # KB単位
+  # Display file information
+  file_size = File.size(file_path) / 1024.0 # Size in KB
   file_extension = File.extname(file_path)
   document_name = File.basename(file_path)
-  puts "ファイル: #{document_name}"
-  puts "サイズ: #{file_size.round(2)} KB"
-  puts "タイプ: #{file_extension}"
+  puts "File: #{document_name}"
+  puts "Size: #{file_size.round(2)} KB"
+  puts "Type: #{file_extension}"
   puts "==================================="
   
-  # 処理開始時間
+  # Start time
   start_time = Time.now
   
-  # MIMEタイプを決定
+  # Determine MIME type
   mime_type = case file_extension.downcase
               when '.pdf'
                 'application/pdf'
@@ -122,32 +122,32 @@ if cache_mode == :create
                 'application/octet-stream'
               end
   
-  puts "ドキュメントをキャッシュに保存中..."
-  puts "MIMEタイプ: #{mime_type}"
+  puts "Saving document to cache..."
+  puts "MIME type: #{mime_type}"
   
-  # ファイルサイズが大きい場合の警告
-  if file_size > 10000 # 10MB以上
-    puts "警告: ファイルサイズが大きいため、処理に時間がかかる場合があります。"
-    puts "処理中は辛抱強くお待ちください..."
+  # Warning for large files
+  if file_size > 10000 # More than 10MB
+    puts "Warning: File size is large, processing may take some time."
+    puts "Please be patient during processing..."
   end
 
-  # 大きなファイルの処理を監視するためのプログレスインジケータを表示
+  # Display progress indicator for monitoring large file processing
   progress_thread = Thread.new do
     spinner = ['|', '/', '-', '\\']
     i = 0
     loop do
-      print "\r処理中... #{spinner[i]} "
+      print "\rProcessing... #{spinner[i]} "
       i = (i + 1) % 4
       sleep 0.5
     end
   end
   
   begin
-    # ファイルを読み込みBase64エンコード
+    # Read file and encode in Base64
     file_data = File.binread(file_path)
     encoded_data = Base64.strict_encode64(file_data)
     
-    # キャッシュリクエストを準備
+    # Prepare cache request
     request = {
       "model" => "models/#{model}",
       "contents" => [
@@ -166,35 +166,35 @@ if cache_mode == :create
       "systemInstruction" => {
         "parts" => [
           {
-            "text" => "あなたはドキュメント分析の専門家です。与えられたドキュメントの内容を正確に把握し、質問に詳細に答えてください。"
+            "text" => "You are a document analysis expert. Please accurately understand the content of the given document and answer questions in detail."
           }
         ],
         "role" => "system"
       },
-      "ttl" => "86400s" # 24時間
+      "ttl" => "86400s" # 24 hours
     }
     
-    # Faradayインスタンスを作成（タイムアウト延長）
+    # Create Faraday instance (extended timeout)
     conn = Faraday.new do |f|
-      f.options[:timeout] = 300 # 5分タイムアウト
+      f.options[:timeout] = 300 # 5 minute timeout
     end
     
-    # APIリクエストを送信
+    # Send API request
     response = conn.post("https://generativelanguage.googleapis.com/v1beta/cachedContents") do |req|
       req.headers['Content-Type'] = 'application/json'
       req.params['key'] = api_key
       req.body = JSON.generate(request)
     end
     
-    # プログレススレッドを終了
+    # End progress thread
     progress_thread.kill
-    print "\r" # カーソルを行頭に戻す
+    print "\r" # Return cursor to beginning of line
     
     if response.status == 200
       result = JSON.parse(response.body)
       cache_name = result["name"]
       
-      # キャッシュ情報をJSONに保存（再利用のため）
+      # Save cache information to JSON (for reuse)
       cache_info = {
         "cache_name" => cache_name,
         "document_name" => document_name,
@@ -205,27 +205,27 @@ if cache_mode == :create
       
       File.write(cache_info_file, JSON.pretty_generate(cache_info))
       
-      # 処理終了時間と経過時間の計算
+      # End time and elapsed time calculation
       end_time = Time.now
       elapsed_time = end_time - start_time
       
-      puts "成功！ドキュメントがキャッシュに保存されました。"
-      puts "キャッシュ名: #{cache_name}"
-      puts "処理時間: #{elapsed_time.round(2)} 秒"
+      puts "Success! Document has been saved to cache."
+      puts "Cache name: #{cache_name}"
+      puts "Processing time: #{elapsed_time.round(2)} seconds"
       
-      # トークン使用量情報（利用可能な場合）
+      # Token usage information (if available)
       if result["usageMetadata"] && result["usageMetadata"]["totalTokenCount"]
         token_count = result["usageMetadata"]["totalTokenCount"]
-        puts "トークン使用量: #{token_count}"
+        puts "Token usage: #{token_count}"
         
         if token_count < 32768
-          puts "警告: トークン数が最小要件（32,768）を下回っています。キャッシュが正常に機能しない可能性があります。"
+          puts "Warning: Token count is below the minimum requirement (32,768). Cache may not function properly."
         else
-          puts "トークン数は最小要件（32,768）を満たしています。"
+          puts "Token count meets the minimum requirement (32,768)."
         end
       end
     else
-      puts "エラー: キャッシュの作成に失敗しました（ステータスコード: #{response.status}）"
+      puts "Error: Failed to create cache (Status code: #{response.status})"
       if response.body
         begin
           error_json = JSON.parse(response.body)
@@ -237,47 +237,47 @@ if cache_mode == :create
       exit 1
     end
   rescue => e
-    # プログレススレッドを終了
+    # End progress thread
     progress_thread.kill if progress_thread.alive?
-    print "\r" # カーソルを行頭に戻す
-    puts "エラーが発生しました: #{e.message}"
+    print "\r" # Return cursor to beginning of line
+    puts "An error occurred: #{e.message}"
     exit 1
   end
 else
-  # 再利用モードの場合はキャッシュ情報を読み込んだものを使用
-  puts "既存のキャッシュを再利用します: #{cache_name}"
-  puts "使用するモデル: #{model}"
+  # For reuse mode, use the cache information loaded
+  puts "Reusing existing cache: #{cache_name}"
+  puts "Model being used: #{model}"
 end
 
 puts "==================================="
 
-# コマンド補完用の設定
+# Command completion settings
 COMMANDS = ['exit', 'list', 'delete', 'help', 'info', 'extend'].freeze
 Readline.completion_proc = proc { |input|
   COMMANDS.grep(/^#{Regexp.escape(input)}/)
 }
 
-puts "\nキャッシュされたドキュメントに質問できます。"
-puts "コマンド: exit (終了), list (一覧), delete (削除), info (情報), extend (有効期限延長), help (ヘルプ)"
+puts "\nYou can ask questions about the cached document."
+puts "Commands: exit, list (list caches), delete (delete cache), info (information), extend (extend expiration), help"
 
-# 会話ループ
+# Conversation loop
 loop do
-  # ユーザー入力
+  # User input
   user_input = Readline.readline("\n> ", true)
   
-  # 入力がnil（Ctrl+D）の場合
+  # If input is nil (Ctrl+D)
   break if user_input.nil?
   
   user_input = user_input.strip
   
-  # コマンド処理
+  # Command processing
   case user_input.downcase
   when 'exit'
-    puts "デモを終了します。"
+    puts "Exiting demo."
     break
     
   when 'list'
-    puts "\n=== キャッシュ一覧 ==="
+    puts "\n=== Cache List ==="
     conn = Faraday.new
     response = conn.get("https://generativelanguage.googleapis.com/v1beta/cachedContents") do |req|
       req.params['key'] = api_key
@@ -287,42 +287,42 @@ loop do
       result = JSON.parse(response.body)
       if result["cachedContents"] && !result["cachedContents"].empty?
         result["cachedContents"].each do |cache|
-          puts "名前: #{cache['name']}"
-          puts "モデル: #{cache['model']}"
-          puts "作成時間: #{Time.parse(cache['createTime']).strftime('%Y-%m-%d %H:%M:%S')}" if cache['createTime']
-          puts "有効期限: #{Time.parse(cache['expireTime']).strftime('%Y-%m-%d %H:%M:%S')}" if cache['expireTime']
-          puts "トークン数: #{cache.dig('usageMetadata', 'totalTokenCount') || '不明'}"
+          puts "Name: #{cache['name']}"
+          puts "Model: #{cache['model']}"
+          puts "Created: #{Time.parse(cache['createTime']).strftime('%Y-%m-%d %H:%M:%S')}" if cache['createTime']
+          puts "Expires: #{Time.parse(cache['expireTime']).strftime('%Y-%m-%d %H:%M:%S')}" if cache['expireTime']
+          puts "Tokens: #{cache.dig('usageMetadata', 'totalTokenCount') || 'unknown'}"
           puts "--------------------------"
         end
       else
-        puts "キャッシュが見つかりません。"
+        puts "No caches found."
       end
     else
-      puts "キャッシュ一覧の取得に失敗しました（ステータスコード: #{response.status}）"
+      puts "Failed to retrieve cache list (Status code: #{response.status})"
     end
     next
     
   when 'delete'
-    puts "\nキャッシュを削除します: #{cache_name}"
+    puts "\nDeleting cache: #{cache_name}"
     conn = Faraday.new
     response = conn.delete("https://generativelanguage.googleapis.com/v1beta/#{cache_name}") do |req|
       req.params['key'] = api_key
     end
     
     if response.status == 200
-      puts "キャッシュが削除されました。"
-      # キャッシュ情報ファイルも削除
+      puts "Cache has been deleted."
+      # Also delete cache information file
       FileUtils.rm(cache_info_file) if File.exist?(cache_info_file)
-      puts "キャッシュ情報ファイルも削除しました。"
-      puts "デモを終了します。"
+      puts "Cache information file has also been deleted."
+      puts "Exiting demo."
       break
     else
-      puts "キャッシュの削除に失敗しました（ステータスコード: #{response.status}）"
+      puts "Failed to delete cache (Status code: #{response.status})"
     end
     next
     
   when 'info'
-    puts "\n=== 現在のキャッシュ情報 ==="
+    puts "\n=== Current Cache Information ==="
     conn = Faraday.new
     response = conn.get("https://generativelanguage.googleapis.com/v1beta/#{cache_name}") do |req|
       req.params['key'] = api_key
@@ -330,92 +330,92 @@ loop do
     
     if response.status == 200
       cache_data = JSON.parse(response.body)
-      puts "キャッシュ名: #{cache_data['name']}"
-      puts "モデル: #{cache_data['model']}"
+      puts "Cache name: #{cache_data['name']}"
+      puts "Model: #{cache_data['model']}"
       
       if cache_data["createTime"]
         create_time = Time.parse(cache_data["createTime"])
-        puts "作成時間: #{create_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        puts "Created: #{create_time.strftime('%Y-%m-%d %H:%M:%S')}"
       end
       
       if cache_data["expireTime"]
         expire_time = Time.parse(cache_data["expireTime"])
         current_time = Time.now
         remaining_time = expire_time - current_time
-        puts "有効期限: #{expire_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        puts "Expires: #{expire_time.strftime('%Y-%m-%d %H:%M:%S')}"
         
-        # 残り時間を日時分秒で表示
+        # Display remaining time in days, hours, minutes, seconds
         days = (remaining_time / 86400).to_i
         hours = ((remaining_time % 86400) / 3600).to_i
         minutes = ((remaining_time % 3600) / 60).to_i
         seconds = (remaining_time % 60).to_i
         
-        puts "残り時間: #{days}日 #{hours}時間 #{minutes}分 #{seconds}秒"
+        puts "Time remaining: #{days} days #{hours} hours #{minutes} minutes #{seconds} seconds"
       end
       
       if cache_data.dig("usageMetadata", "totalTokenCount")
         token_count = cache_data['usageMetadata']['totalTokenCount']
-        puts "トークン数: #{token_count}"
+        puts "Token count: #{token_count}"
         
         if token_count < 32768
-          puts "警告: トークン数が最小要件（32,768）を下回っています。"
+          puts "Warning: Token count is below the minimum requirement (32,768)."
         else
-          puts "トークン数は最小要件（32,768）を満たしています。"
+          puts "Token count meets the minimum requirement (32,768)."
         end
       end
     else
-      puts "キャッシュ情報の取得に失敗しました（ステータスコード: #{response.status}）"
+      puts "Failed to retrieve cache information (Status code: #{response.status})"
     end
     next
     
   when 'extend'
-    puts "\nキャッシュの有効期限を延長します: #{cache_name}"
+    puts "\nExtending cache expiration: #{cache_name}"
     conn = Faraday.new
     response = conn.patch("https://generativelanguage.googleapis.com/v1beta/#{cache_name}") do |req|
       req.headers['Content-Type'] = 'application/json'
       req.params['key'] = api_key
       req.params['updateMask'] = 'ttl'
-      req.body = JSON.generate({ "ttl" => "86400s" }) # 24時間延長
+      req.body = JSON.generate({ "ttl" => "86400s" }) # Extend by 24 hours
     end
     
     if response.status == 200
       result = JSON.parse(response.body)
       if result["expireTime"]
         expire_time = Time.parse(result["expireTime"])
-        puts "有効期限が延長されました: #{expire_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        puts "Expiration has been extended to: #{expire_time.strftime('%Y-%m-%d %H:%M:%S')}"
       else
-        puts "有効期限の延長に成功しましたが、新しい有効期限が取得できませんでした。"
+        puts "Expiration extension was successful, but couldn't retrieve the new expiration time."
       end
     else
-      puts "有効期限の延長に失敗しました（ステータスコード: #{response.status}）"
+      puts "Failed to extend expiration (Status code: #{response.status})"
     end
     next
     
   when 'help'
-    puts "\nコマンド:"
-    puts "  exit   - デモを終了"
-    puts "  list   - キャッシュ一覧を表示"
-    puts "  delete - 現在のキャッシュを削除"
-    puts "  info   - 現在のキャッシュの詳細情報を表示"
-    puts "  extend - キャッシュの有効期限を24時間延長"
-    puts "  help   - このヘルプを表示"
-    puts "  その他 - ドキュメントに関する質問"
+    puts "\nCommands:"
+    puts "  exit   - Exit the demo"
+    puts "  list   - Display list of caches"
+    puts "  delete - Delete current cache"
+    puts "  info   - Show detailed information about current cache"
+    puts "  extend - Extend cache expiration by 24 hours"
+    puts "  help   - Display this help"
+    puts "  other  - Ask questions about the document"
     next
     
   when ''
-    # 空の入力の場合はスキップ
+    # Skip empty input
     next
   end
   
-  # 質問処理
+  # Process question
   begin
-    # 処理時間計測開始
+    # Start measuring processing time
     query_start_time = Time.now
     
-    # 処理中の表示
-    puts "処理中..."
+    # Display processing message
+    puts "Processing..."
     
-    # 質問リクエストを準備
+    # Prepare question request
     request = {
       "contents" => [
         {
@@ -428,7 +428,7 @@ loop do
       "cachedContent" => cache_name
     }
     
-    # APIリクエストを送信
+    # Send API request
     conn = Faraday.new do |f|
       f.options[:timeout] = 60
     end
@@ -439,14 +439,14 @@ loop do
       req.body = JSON.generate(request)
     end
     
-    # 処理時間計測終了
+    # End measuring processing time
     query_end_time = Time.now
     query_time = query_end_time - query_start_time
     
     if response.status == 200
       result = JSON.parse(response.body)
       
-      # テキスト応答を抽出
+      # Extract text response
       answer_text = nil
       if result["candidates"] && !result["candidates"].empty?
         candidate = result["candidates"][0]
@@ -458,24 +458,24 @@ loop do
       end
       
       if answer_text
-        puts "\n回答:"
+        puts "\nAnswer:"
         puts answer_text
-        puts "\n処理時間: #{query_time.round(2)} 秒"
+        puts "\nProcessing time: #{query_time.round(2)} seconds"
         
-        # トークン使用量情報（利用可能な場合）
+        # Token usage information (if available)
         if result["usage"]
-          puts "トークン使用量:"
-          puts "  プロンプト: #{result['usage']['promptTokens'] || 'N/A'}"
-          puts "  生成: #{result['usage']['candidateTokens'] || 'N/A'}"
-          puts "  合計: #{result['usage']['totalTokens'] || 'N/A'}"
+          puts "Token usage:"
+          puts "  Prompt: #{result['usage']['promptTokens'] || 'N/A'}"
+          puts "  Generation: #{result['usage']['candidateTokens'] || 'N/A'}"
+          puts "  Total: #{result['usage']['totalTokens'] || 'N/A'}"
         end
       else
-        puts "エラー: 応答からテキストを抽出できませんでした"
-        puts "応答内容:"
+        puts "Error: Could not extract text from response"
+        puts "Response content:"
         puts JSON.pretty_generate(result)
       end
     else
-      puts "エラー: 質問処理に失敗しました（ステータスコード: #{response.status}）"
+      puts "Error: Failed to process question (Status code: #{response.status})"
       if response.body
         begin
           error_json = JSON.parse(response.body)
@@ -486,6 +486,6 @@ loop do
       end
     end
   rescue => e
-    puts "質問の処理中にエラーが発生しました: #{e.message}"
+    puts "An error occurred while processing the question: #{e.message}"
   end
 end

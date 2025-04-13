@@ -5,83 +5,83 @@ require 'logger'
 logger = Logger.new(STDOUT)
 logger.level = Logger::INFO
 
-# APIキーを環境変数から取得
-api_key = ENV['GEMINI_API_KEY'] || raise("GEMINI_API_KEY環境変数を設定してください")
+# Get API key from environment variable
+api_key = ENV['GEMINI_API_KEY'] || raise("Please set the GEMINI_API_KEY environment variable")
 
 begin
-  logger.info "Geminiクライアントを初期化しています..."
+  logger.info "Initializing Gemini client..."
   client = Gemini::Client.new(api_key)
   
-  puts "Gemini ドキュメントチャットデモ"
+  puts "Gemini Document Chat Demo"
   puts "==================================="
   
-  # ドキュメントファイルのパスを指定
-  document_path = ARGV[0] || raise("使用方法: ruby document_chat_demo.rb <ドキュメントファイルのパス> [プロンプト]")
+  # Specify document file path
+  document_path = ARGV[0] || raise("Usage: ruby document_chat_demo_en.rb <document_file_path> [prompt]")
   
-  # プロンプトを指定
-  prompt = ARGV[1] || "このドキュメントの要約を3点にまとめてください"
+  # Specify prompt
+  prompt = ARGV[1] || "Please summarize this document in three key points"
   
-  # ファイルの存在確認
+  # Check if file exists
   unless File.exist?(document_path)
-    raise "ファイルが見つかりません: #{document_path}"
+    raise "File not found: #{document_path}"
   end
   
-  # ファイル情報を表示
-  file_size = File.size(document_path) / 1024.0 # KB単位
+  # Display file information
+  file_size = File.size(document_path) / 1024.0 # Size in KB
   file_extension = File.extname(document_path)
-  puts "ファイル: #{File.basename(document_path)}"
-  puts "サイズ: #{file_size.round(2)} KB"
-  puts "タイプ: #{file_extension}"
-  puts "プロンプト: #{prompt}"
+  puts "File: #{File.basename(document_path)}"
+  puts "Size: #{file_size.round(2)} KB"
+  puts "Type: #{file_extension}"
+  puts "Prompt: #{prompt}"
   puts "==================================="
   
-  # 処理開始時間
+  # Start time
   start_time = Time.now
   
-  # 処理方法を選択（デフォルトはドキュメント処理クラスを使用）
+  # Choose processing method (default: use Documents class)
   use_direct_approach = ENV['USE_DIRECT'] == 'true'
   
-  puts "処理方法: #{use_direct_approach ? '直接APIを使用' : 'Documentsクラスを使用'}"
-  puts "ドキュメントを処理中..."
+  puts "Processing method: #{use_direct_approach ? 'Using API directly' : 'Using Documents class'}"
+  puts "Processing document..."
   
   if use_direct_approach
-    # 直接APIを使用する方法
+    # Method using API directly
     result = client.upload_and_process_file(document_path, prompt)
     response = result[:response]
   else
-    # Documentsクラスを使用する方法
+    # Method using Documents class
     result = client.documents.process(file_path: document_path, prompt: prompt)
     response = result[:response]
   end
   
-  # 処理終了時間と経過時間の計算
+  # End time and elapsed time calculation
   end_time = Time.now
   elapsed_time = end_time - start_time
   
-  puts "\n=== ドキュメント処理結果 ==="
+  puts "\n=== Document Processing Results ==="
   
   if response.success?
     puts response.text
   else
-    puts "エラー: #{response.error || '不明なエラー'}"
+    puts "Error: #{response.error || 'Unknown error'}"
   end
   
   puts "======================="
-  puts "処理時間: #{elapsed_time.round(2)} 秒"
+  puts "Processing time: #{elapsed_time.round(2)} seconds"
   
-  # ファイル情報
-  puts "ファイルURI: #{result[:file_uri]}"
-  puts "ファイル名: #{result[:file_name]}"
+  # File information
+  puts "File URI: #{result[:file_uri]}"
+  puts "File name: #{result[:file_name]}"
   
-  # トークン使用量情報（利用可能な場合）
+  # Token usage information (if available)
   if response.total_tokens > 0
-    puts "\nトークン使用量:"
-    puts "  プロンプト: #{response.prompt_tokens}"
-    puts "  生成: #{response.completion_tokens}"
-    puts "  合計: #{response.total_tokens}"
+    puts "\nToken usage:"
+    puts "  Prompt: #{response.prompt_tokens}"
+    puts "  Generation: #{response.completion_tokens}"
+    puts "  Total: #{response.total_tokens}"
   end
 
 rescue StandardError => e
-  logger.error "エラーが発生しました: #{e.message}"
+  logger.error "An error occurred: #{e.message}"
   logger.error e.backtrace.join("\n") if ENV["DEBUG"]
 end
