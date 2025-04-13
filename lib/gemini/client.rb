@@ -54,6 +54,16 @@ module Gemini
       @images ||= Gemini::Images.new(client: self)
     end
 
+    # ドキュメント処理アクセサ
+    def documents
+      @documents ||= Gemini::Documents.new(client: self)
+    end
+
+    # キャッシュ管理アクセサ
+    def cached_content
+      @cached_content ||= Gemini::CachedContent.new(client: self)
+    end
+
     def reset_headers
       @extra_headers = {}
     end
@@ -175,6 +185,114 @@ module Gemini
       
       chat(parameters: params, &block)
     end
+
+    # ファイルを使った会話（複数ファイル対応）
+    def chat_with_multimodal(file_paths, prompt, model: "gemini-1.5-flash", **parameters)
+      # スレッドを作成
+      thread = threads.create(parameters: { model: model })
+      thread_id = thread["id"]
+      
+      # 複数のファイルをアップロードして追加
+      file_infos = []
+      
+      begin
+        # ファイルをアップロードしてメッセージとして追加
+        file_paths.each do |file_path|
+          file = File.open(file_path, "rb")
+          begin
+            upload_result = files.upload(file: file)
+            file_uri = upload_result["file"]["uri"]
+            file_name = upload_result["file"]["name"]
+            mime_type = determine_mime_type(file_path)
+            
+            # ファイル情報を保存
+            file_infos << {
+              uri: file_uri,
+              name: file_name,
+              mime_type: mime_type
+            }
+            
+            # ファイルをメッセージとして追加
+            messages.create(
+              thread_id: thread_id,
+              parameters: {
+                role: "user",
+                content: [
+                  { file_data: { mime_type: mime_type, file_uri: file_uri } }
+                ]
+              }
+            )
+          ensure
+            file.close
+          end
+        end
+        
+        # プロンプトメッセージを追加
+        messages.create(
+          thread_id: thread_id,
+          parameters: {
+            role: "user",
+            content: prompt
+          }
+        )
+        
+        # 実行
+        run = runs.create(thread_id: thread_id, parameters: parameters)
+        
+        # メッセージを取得
+        messages_list = messages.list(thread_id: thread_id)
+        
+        # 結果とファイル情報を返す
+        {
+          messages: messages_list,
+          run: run,
+          file_infos: file_infos,
+          thread_id: thread_id
+        }
+      rescue => e
+        # エラー処理
+        { error: e.message, file_infos: file_infos }
+      end
+    end
+
+    # 単一ファイルのヘルパー
+    def chat_with_file(file_path, prompt, model: "gemini-1.5-flash", **parameters)
+      chat_with_multimodal([file_path], prompt, model: model, **parameters)
+    end
+
+    # ファイルをアップロードして質問するシンプルなヘルパー
+    def upload_and_process_file(file_path, prompt, content_type: nil, model: "gemini-1.5-flash", **parameters)
+      # MIMEタイプを自動判定
+      mime_type = content_type || determine_mime_type(file_path)
+      
+      # ファイルをアップロード
+      file = File.open(file_path, "rb")
+      begin
+        upload_result = files.upload(file: file)
+        file_uri = upload_result["file"]["uri"]
+        file_name = upload_result["file"]["name"]
+        
+        # コンテンツを生成
+        response = generate_content(
+          [
+            { text: prompt },
+            { file_data: { mime_type: mime_type, file_uri: file_uri } }
+          ],
+          model: model,
+          **parameters
+        )
+        
+        # レスポンスと一緒にファイル情報も返す
+        {
+          response: response,
+          file_uri: file_uri,
+          file_name: file_name
+        }
+      ensure
+        file.close
+      end
+    end
+    
     # Debug inspect method
     def inspect
       vars = instance_variables.map do |var|
@@ -182,6 +300,80 @@ module Gemini
         SENSITIVE_ATTRIBUTES.include?(var) ? "#{var}=[REDACTED]" : "#{var}=#{value.inspect}"
       end
       "#<#{self.class}:#{object_id} #{vars.join(', ')}>"
+    end
+    
+    # MIMEタイプを判定するメソッド（パブリックに変更）
+    def determine_mime_type(path_or_url)
+      extension = File.extname(path_or_url).downcase
+      
+      # ドキュメント形式
+      document_types = {
+        ".pdf" => "application/pdf",
+        ".js" => "application/x-javascript",
+        ".py" => "application/x-python",
+        ".txt" => "text/plain",
+        ".html" => "text/html",
+        ".htm" => "text/html",
+        ".css" => "text/css",
+        ".md" => "text/md",
+        ".csv" => "text/csv",
+        ".xml" => "text/xml",
+        ".rtf" => "text/rtf"
+      }
+      
+      # 画像形式
+      image_types = {
+        ".jpg" => "image/jpeg",
+        ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".heic" => "image/heic",
+        ".heif" => "image/heif"
+      }
+      
+      # 音声形式
+      audio_types = {
+        ".wav" => "audio/wav",
+        ".mp3" => "audio/mp3",
+        ".aiff" => "audio/aiff",
+        ".aac" => "audio/aac",
+        ".ogg" => "audio/ogg",
+        ".flac" => "audio/flac"
+      }
+      
+      # 拡張子からMIMEタイプを判定
+      mime_type = document_types[extension] || image_types[extension] || audio_types[extension]
+      return mime_type if mime_type
+      
+      # ファイルの内容から判定を試みる
+      if File.exist?(path_or_url)
+        # ファイルの最初の数バイトを読み込んで判定
+        first_bytes = File.binread(path_or_url, 8).bytes
+        case
+        when first_bytes[0..1] == [0xFF, 0xD8]
+          return "image/jpeg"  # JPEG
+        when first_bytes[0..7] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+          return "image/png"   # PNG
+        when first_bytes[0..2] == [0x47, 0x49, 0x46]
+          return "image/gif"   # GIF
+        when first_bytes[0..3] == [0x52, 0x49, 0x46, 0x46] && first_bytes[8..11] == [0x57, 0x45, 0x42, 0x50]
+          return "image/webp"  # WEBP
+        when first_bytes[0..3] == [0x25, 0x50, 0x44, 0x46]
+          return "application/pdf" # PDF
+        when first_bytes[0..1] == [0x49, 0x44]
+          return "audio/mp3"   # MP3
+        when first_bytes[0..3] == [0x52, 0x49, 0x46, 0x46]
+          return "audio/wav"   # WAV
+        end
+      end
+      
+      # URLまたは判定できない場合
+      if path_or_url.start_with?("http://", "https://")
+        "application/octet-stream"
+      else
+        "application/octet-stream"
+      end
     end
     
     private
@@ -240,6 +432,21 @@ module Gemini
                 {
                   file_data: part[:file_data]
                 }
+              # 新しいタイプを追加
+              when "document"
+                {
+                  file_data: {
+                    mime_type: part[:document][:mime_type] || determine_mime_type(part[:document][:file_path]),
+                    file_uri: part[:document][:file_uri]
+                  }
+                }
+              when "audio"
+                {
+                  file_data: {
+                    mime_type: part[:audio][:mime_type] || determine_mime_type(part[:audio][:file_path]),
+                    file_uri: part[:audio][:file_uri]
+                  }
+                }
               else
                 # Other types return as is
                 part
@@ -276,45 +483,6 @@ module Gemini
         end
       else
         { parts: [{ text: input.to_s }] }
-      end
-    end
-    
-    def determine_mime_type(path_or_url)
-      extension = File.extname(path_or_url).downcase
-      case extension
-      when ".jpg", ".jpeg"
-        "image/jpeg"
-      when ".png"
-        "image/png"
-      when ".gif"
-        "image/gif"
-      when ".webp"
-        "image/webp"
-      when ".heic"
-        "image/heic"
-      when ".heif"
-        "image/heif"
-      else
-        #  cannot determine from the extension
-        if File.exist?(path_or_url)
-          # Guess MIME type by looking at the first byte of the file
-          first_bytes = File.binread(path_or_url, 8).bytes
-          case
-          when first_bytes[0..1] == [0xFF, 0xD8]
-            "image/jpeg"  # JPEG
-          when first_bytes[0..7] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
-            "image/png"   # PNG
-          when first_bytes[0..2] == [0x47, 0x49, 0x46]
-            "image/gif"   # GIF
-          when first_bytes[0..3] == [0x52, 0x49, 0x46, 0x46] && first_bytes[8..11] == [0x57, 0x45, 0x42, 0x50]
-            "image/webp"  # WEBP
-          else
-            "image/jpeg"  # default
-          end
-        else
-          # If it's a URL, default to JPEG
-          "image/jpeg"
-        end
       end
     end
 
