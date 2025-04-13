@@ -16,6 +16,8 @@ require_relative "gemini/audio"
 require_relative "gemini/files"
 require_relative "gemini/images"
 require_relative "gemini/response"
+require_relative "gemini/documents"
+require_relative "gemini/cached_content"
 module Gemini
   class Error < StandardError; end
   class ConfigurationError < Error; end

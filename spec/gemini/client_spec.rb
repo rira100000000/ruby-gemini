@@ -347,8 +347,8 @@ RSpec.describe Gemini::Client do
       expect(client.send(:determine_mime_type, "photo.heif")).to eq("image/heif")
     end
 
-    it "defaults to JPEG for unknown formats" do
-      expect(client.send(:determine_mime_type, "unknown.xyz")).to eq("image/jpeg")
+    it "unknown formats" do
+      expect(client.send(:determine_mime_type, "unknown.xyz")).to eq("application/octet-stream")
     end
   end
 
